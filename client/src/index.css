@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── BECS OS — Dark Blue (#26296A) primary, Green (#A2D652) accent ── */
+  :root {
+    /* Surfaces — light warm white */
+    --background: 220 14% 97%;
+    --foreground: 230 35% 14%;
+    --card: 220 20% 98%;
+    --card-foreground: 230 35% 14%;
+    --popover: 220 20% 99%;
+    --popover-foreground: 230 35% 14%;
+    --muted: 220 12% 92%;
+    --muted-foreground: 220 10% 48%;
+
+    /* BECS Primary — Dark Blue */
+    --primary: 232 45% 29%;
+    --primary-foreground: 0 0% 100%;
+
+    /* BECS Accent — Green */
+    --accent: 83 60% 57%;
+    --accent-foreground: 230 35% 14%;
+
+    /* Secondary */
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 230 35% 20%;
+
+    /* Borders & inputs */
+    --border: 220 12% 87%;
+    --input: 220 12% 87%;
+    --ring: 232 45% 29%;
+
+    /* Semantic */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Radius */
+    --radius: 0.5rem;
+
+    /* Chart colors */
+    --chart-1: 232 45% 29%;
+    --chart-2: 83 60% 57%;
+    --chart-3: 198 60% 45%;
+    --chart-4: 35 80% 55%;
+    --chart-5: 320 45% 48%;
+  }
+
+  .dark {
+    --background: 232 30% 9%;
+    --foreground: 220 15% 88%;
+    --card: 232 28% 12%;
+    --card-foreground: 220 15% 88%;
+    --popover: 232 28% 11%;
+    --popover-foreground: 220 15% 88%;
+    --muted: 232 22% 17%;
+    --muted-foreground: 220 10% 52%;
+    --primary: 83 60% 57%;
+    --primary-foreground: 230 35% 10%;
+    --accent: 232 45% 45%;
+    --accent-foreground: 0 0% 100%;
+    --secondary: 232 22% 17%;
+    --secondary-foreground: 220 15% 80%;
+    --border: 232 18% 22%;
+    --input: 232 18% 22%;
+    --ring: 83 60% 57%;
+    --destructive: 0 60% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --chart-1: 83 60% 57%;
+    --chart-2: 232 45% 55%;
+    --chart-3: 198 55% 55%;
+    --chart-4: 35 70% 60%;
+    --chart-5: 320 40% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'General Sans', 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cabinet Grotesk', 'General Sans', system-ui, sans-serif;
+    line-height: 1.15;
+  }
+}
+
+/* BECS Status Badge colors */
+.status-new { @apply bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800; }
+.status-reviewing { @apply bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800; }
+.status-discovery { @apply bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800; }
+.status-proposal { @apply bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800; }
+.status-active { @apply bg-green-50 text-green-700 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800; }
+.status-complete { @apply bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700; }
+.status-nurture { @apply bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800; }
+.status-pending { @apply bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800; }
+.status-signed { @apply bg-green-50 text-green-700 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800; }
+.status-paid { @apply bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800; }
+.status-draft { @apply bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700; }
+.status-sent { @apply bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800; }
+.status-accepted { @apply bg-green-50 text-green-700 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800; }
+.status-in_progress { @apply bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800; }
+.status-locked { @apply bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800; }
+.status-scheduled { @apply bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800; }
+.status-completed { @apply bg-green-50 text-green-700 border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800; }
+
+/* Sidebar active state */
+.nav-active {
+  @apply bg-primary text-primary-foreground;
+}
+
+/* Progress bar animation */
+@keyframes progress-fill {
+  from { width: 0; }
+  to { width: var(--progress-width); }
+}
+.progress-animated {
+  animation: progress-fill 0.8s ease-out forwards;
+}
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--secondary)) 50%, hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.375rem;
+}
