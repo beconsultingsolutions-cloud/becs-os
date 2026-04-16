@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toCamelArray, toCamel } from "@/lib/supabase";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { Client, Project, Milestone, Meeting, LegalDoc, Recap, OnboardingItem, AddOn } from "@shared/schema";
 import { ArrowLeft, CheckCircle2, Clock, Lock, CircleDot, CalendarDays, FileText, BookOpen, Sparkles } from "lucide-react";
@@ -25,57 +26,86 @@ export default function ClientDetailPage() {
   const qc = useQueryClient();
 
   const { data: client } = useQuery<Client>({
-    queryKey: ["/api/clients", clientId],
-    queryFn: () => apiRequest("GET", `/api/clients/${clientId}`).then((r) => r.json()),
+    queryKey: ["clients", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").eq("id", clientId).single();
+      return data ? (toCamel(data) as Client) : undefined as any;
+    },
   });
   const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects/client", clientId],
-    queryFn: () => apiRequest("GET", `/api/projects/client/${clientId}`).then((r) => r.json()),
+    queryKey: ["projects-client", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+      return toCamelArray<Project>(data || []);
+    },
   });
   const { data: meetings = [] } = useQuery<Meeting[]>({
-    queryKey: ["/api/meetings/client", clientId],
-    queryFn: () => apiRequest("GET", `/api/meetings/client/${clientId}`).then((r) => r.json()),
+    queryKey: ["meetings-client", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("meetings").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+      return toCamelArray<Meeting>(data || []);
+    },
   });
   const { data: legalDocs = [] } = useQuery<LegalDoc[]>({
-    queryKey: ["/api/legal/client", clientId],
-    queryFn: () => apiRequest("GET", `/api/legal/client/${clientId}`).then((r) => r.json()),
+    queryKey: ["legal-client", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("legal_docs").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+      return toCamelArray<LegalDoc>(data || []);
+    },
   });
   const { data: recaps = [] } = useQuery<Recap[]>({
-    queryKey: ["/api/recaps/client", clientId],
-    queryFn: () => apiRequest("GET", `/api/recaps/client/${clientId}`).then((r) => r.json()),
+    queryKey: ["recaps-client", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("recaps").select("*").eq("client_id", clientId).order("generated_at", { ascending: false });
+      return toCamelArray<Recap>(data || []);
+    },
   });
   const { data: onboarding = [] } = useQuery<OnboardingItem[]>({
-    queryKey: ["/api/onboarding", clientId],
-    queryFn: () => apiRequest("GET", `/api/onboarding/${clientId}`).then((r) => r.json()),
+    queryKey: ["onboarding", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("onboarding_items").select("*").eq("client_id", clientId).order("sort_order");
+      return toCamelArray<OnboardingItem>(data || []);
+    },
   });
   const { data: addons = [] } = useQuery<AddOn[]>({
-    queryKey: ["/api/addons/client", clientId],
-    queryFn: () => apiRequest("GET", `/api/addons/client/${clientId}`).then((r) => r.json()),
+    queryKey: ["addons-client", clientId],
+    queryFn: async () => {
+      const { data } = await supabase.from("add_ons").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+      return toCamelArray<AddOn>(data || []);
+    },
   });
 
   // Active project (first active)
   const activeProject = projects.find((p) => p.status === "active") || projects[0];
 
   const { data: milestones = [] } = useQuery<Milestone[]>({
-    queryKey: ["/api/milestones/project", activeProject?.id],
-    queryFn: () => activeProject ? apiRequest("GET", `/api/milestones/project/${activeProject.id}`).then((r) => r.json()) : Promise.resolve([]),
+    queryKey: ["milestones-project", activeProject?.id],
+    queryFn: async () => {
+      if (!activeProject) return [];
+      const { data } = await supabase.from("milestones").select("*").eq("project_id", activeProject.id).order("sort_order");
+      return toCamelArray<Milestone>(data || []);
+    },
     enabled: !!activeProject,
   });
 
   const updateMilestone = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      apiRequest("PATCH", `/api/milestones/${id}`, { status, completedAt: status === "complete" ? new Date().toISOString() : null }),
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const { error } = await supabase.from("milestones").update({ status, completed_at: status === "complete" ? new Date().toISOString() : null }).eq("id", id);
+      if (error) throw error;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/milestones/project", activeProject?.id] });
+      qc.invalidateQueries({ queryKey: ["milestones-project", activeProject?.id] });
       toast({ title: "Milestone updated" });
     },
   });
 
   const updateOnboarding = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      apiRequest("PATCH", `/api/onboarding/item/${id}`, { status, completedAt: status === "complete" ? new Date().toISOString() : null }),
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const { error } = await supabase.from("onboarding_items").update({ status, completed_at: status === "complete" ? new Date().toISOString() : null }).eq("id", id);
+      if (error) throw error;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/onboarding", clientId] });
+      qc.invalidateQueries({ queryKey: ["onboarding", clientId] });
     },
   });
 
@@ -157,7 +187,7 @@ export default function ClientDetailPage() {
                 <p className="px-5 py-8 text-center text-muted-foreground text-sm">No milestones yet.</p>
               ) : (
                 <div className="divide-y divide-border">
-                  {milestones.map((m, i) => (
+                  {milestones.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 px-5 py-3" data-testid={`milestone-row-${m.id}`}>
                       <MilestoneStatusIcon status={m.status} />
                       <div className="flex-1">
@@ -325,6 +355,3 @@ export default function ClientDetailPage() {
     </div>
   );
 }
-
-// Need to import Select components used above
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

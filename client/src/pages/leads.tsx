@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toSnake, toCamelArray, toCamel } from "@/lib/supabase";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,14 +48,26 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
   const mutation = useMutation({
     mutationFn: async () => {
       if (initial?.id) {
-        await apiRequest("PATCH", `/api/leads/${initial.id}`, form);
+        const { error } = await supabase.from("leads").update({ ...toSnake(form), updated_at: new Date().toISOString() }).eq("id", initial.id);
+        if (error) throw error;
       } else {
-        await apiRequest("POST", "/api/leads", form);
+        // Generate lead ID
+        const { count } = await supabase.from("leads").select("id", { count: "exact", head: true });
+        const leadId = `BECS-L-${String((count || 0) + 1).padStart(3, "0")}`;
+        const { data, error } = await supabase.from("leads").insert({ ...toSnake(form), lead_id: leadId }).select().single();
+        if (error) throw error;
+        // Log automation event
+        await supabase.from("automation_events").insert({
+          type: "lead_created", entity_type: "lead", entity_id: data.id,
+          description: `Lead ${leadId} created`, status: "success",
+          triggered_at: new Date().toISOString(),
+        });
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/leads"] });
-      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["automation-events"] });
       toast({ title: initial?.id ? "Lead updated" : "Lead created" });
       onSuccess();
     },
@@ -169,8 +181,11 @@ export default function LeadsPage() {
   const [editing, setEditing] = useState<Lead | null>(null);
 
   const { data: leads = [], isLoading } = useQuery<Lead[]>({
-    queryKey: ["/api/leads"],
-    queryFn: () => apiRequest("GET", "/api/leads").then((r) => r.json()),
+    queryKey: ["leads"],
+    queryFn: async () => {
+      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Lead>(data || []);
+    },
   });
 
   const filtered = leads.filter((l) => {

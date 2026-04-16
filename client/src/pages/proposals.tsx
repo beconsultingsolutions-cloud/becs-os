@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,25 +28,45 @@ export default function ProposalsPage() {
   const qc = useQueryClient();
 
   const { data: proposals = [], isLoading } = useQuery<Proposal[]>({
-    queryKey: ["/api/proposals"],
-    queryFn: () => apiRequest("GET", "/api/proposals").then((r) => r.json()),
+    queryKey: ["proposals"],
+    queryFn: async () => {
+      const { data } = await supabase.from("proposals").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Proposal>(data || []);
+    },
   });
   const { data: leads = [] } = useQuery<Lead[]>({
-    queryKey: ["/api/leads"],
-    queryFn: () => apiRequest("GET", "/api/leads").then((r) => r.json()),
+    queryKey: ["leads"],
+    queryFn: async () => {
+      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Lead>(data || []);
+    },
   });
 
   const [form, setForm] = useState({ leadId: "", serviceType: "reality_check", title: "", scope: "", price: "", timeline: "", deliverables: "", ndaRequired: 0 });
   const update = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const create = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/proposals", {
-      ...form,
-      leadId: form.leadId ? Number(form.leadId) : null,
-      price: form.price ? Number(form.price) : null,
-    }),
+    mutationFn: async () => {
+      const { count } = await supabase.from("proposals").select("id", { count: "exact", head: true });
+      const proposalId = `BECS-PR-${String((count || 0) + 1).padStart(3, "0")}`;
+      const payload = toSnake({
+        ...form,
+        proposalId,
+        leadId: form.leadId ? Number(form.leadId) : null,
+        price: form.price ? Number(form.price) : null,
+        status: "draft",
+      });
+      const { data, error } = await supabase.from("proposals").insert(payload).select().single();
+      if (error) throw error;
+      await supabase.from("automation_events").insert({
+        type: "proposal_created", entity_type: "lead", entity_id: data.lead_id || 0,
+        description: `Proposal ${proposalId} created`, status: "success",
+        triggered_at: new Date().toISOString(),
+      });
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/proposals"] });
+      qc.invalidateQueries({ queryKey: ["proposals"] });
+      qc.invalidateQueries({ queryKey: ["automation-events"] });
       toast({ title: "Proposal created" });
       setOpen(false);
     },
@@ -54,14 +74,15 @@ export default function ProposalsPage() {
   });
 
   const updateStatus = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) => {
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
       const extra: any = { status };
-      if (status === "sent") extra.sentAt = new Date().toISOString();
-      if (status === "accepted") extra.acceptedAt = new Date().toISOString();
-      return apiRequest("PATCH", `/api/proposals/${id}`, extra);
+      if (status === "sent") extra.sent_at = new Date().toISOString();
+      if (status === "accepted") extra.accepted_at = new Date().toISOString();
+      const { error } = await supabase.from("proposals").update(extra).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/proposals"] });
+      qc.invalidateQueries({ queryKey: ["proposals"] });
       toast({ title: "Proposal updated" });
     },
   });

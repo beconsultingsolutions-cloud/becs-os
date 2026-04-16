@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,14 +31,24 @@ function ClientForm({ onSuccess, initial }: { onSuccess: () => void; initial?: P
   const mutation = useMutation({
     mutationFn: async () => {
       if (initial?.id) {
-        await apiRequest("PATCH", `/api/clients/${initial.id}`, form);
+        const { error } = await supabase.from("clients").update(toSnake(form)).eq("id", initial.id);
+        if (error) throw error;
       } else {
-        await apiRequest("POST", "/api/clients", form);
+        const { count } = await supabase.from("clients").select("id", { count: "exact", head: true });
+        const clientId = `BECS-C-${String((count || 0) + 1).padStart(3, "0")}`;
+        const { data, error } = await supabase.from("clients").insert({ ...toSnake(form), client_id: clientId }).select().single();
+        if (error) throw error;
+        await supabase.from("automation_events").insert({
+          type: "client_activated", entity_type: "client", entity_id: data.id,
+          description: `Client account ${clientId} activated`, status: "success",
+          triggered_at: new Date().toISOString(),
+        });
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/clients"] });
-      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["automation-events"] });
       toast({ title: initial?.id ? "Client updated" : "Client created" });
       onSuccess();
     },
@@ -109,8 +119,11 @@ export default function ClientsPage() {
   const [editing, setEditing] = useState<Client | null>(null);
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
-    queryKey: ["/api/clients"],
-    queryFn: () => apiRequest("GET", "/api/clients").then((r) => r.json()),
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Client>(data || []);
+    },
   });
 
   const filtered = clients.filter((c) =>

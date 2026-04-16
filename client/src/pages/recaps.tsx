@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,24 +23,34 @@ export default function RecapsPage() {
   const qc = useQueryClient();
 
   const { data: recaps = [], isLoading } = useQuery<Recap[]>({
-    queryKey: ["/api/recaps"],
-    queryFn: () => apiRequest("GET", "/api/recaps").then((r) => r.json()),
+    queryKey: ["recaps"],
+    queryFn: async () => {
+      const { data } = await supabase.from("recaps").select("*").order("generated_at", { ascending: false });
+      return toCamelArray<Recap>(data || []);
+    },
   });
   const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["/api/clients"],
-    queryFn: () => apiRequest("GET", "/api/clients").then((r) => r.json()),
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Client>(data || []);
+    },
   });
 
   const [form, setForm] = useState({ clientId: "", type: "milestone", title: "", content: "", source: "manual" });
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const create = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/recaps", {
-      ...form,
-      clientId: form.clientId ? Number(form.clientId) : null,
-    }),
+    mutationFn: async () => {
+      const { error } = await supabase.from("recaps").insert(toSnake({
+        ...form,
+        clientId: form.clientId ? Number(form.clientId) : null,
+        generatedAt: new Date().toISOString(),
+      }));
+      if (error) throw error;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/recaps"] });
+      qc.invalidateQueries({ queryKey: ["recaps"] });
       toast({ title: "Recap created" });
       setOpen(false);
       setForm({ clientId: "", type: "milestone", title: "", content: "", source: "manual" });

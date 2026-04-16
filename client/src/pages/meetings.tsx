@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,25 +24,35 @@ export default function MeetingsPage() {
   const qc = useQueryClient();
 
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({
-    queryKey: ["/api/meetings"],
-    queryFn: () => apiRequest("GET", "/api/meetings").then((r) => r.json()),
+    queryKey: ["meetings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("meetings").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Meeting>(data || []);
+    },
   });
   const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["/api/clients"],
-    queryFn: () => apiRequest("GET", "/api/clients").then((r) => r.json()),
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Client>(data || []);
+    },
   });
 
   const [form, setForm] = useState({ clientId: "", type: "discovery", title: "", scheduledAt: "", duration: "60", notes: "" });
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const create = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/meetings", {
-      ...form,
-      clientId: form.clientId ? Number(form.clientId) : null,
-      duration: Number(form.duration),
-    }),
+    mutationFn: async () => {
+      const { error } = await supabase.from("meetings").insert(toSnake({
+        ...form,
+        clientId: form.clientId && form.clientId !== "none" ? Number(form.clientId) : null,
+        duration: Number(form.duration),
+        status: "scheduled",
+      }));
+      if (error) throw error;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/meetings"] });
+      qc.invalidateQueries({ queryKey: ["meetings"] });
       toast({ title: "Meeting created" });
       setOpen(false);
       setForm({ clientId: "", type: "discovery", title: "", scheduledAt: "", duration: "60", notes: "" });

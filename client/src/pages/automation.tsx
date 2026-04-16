@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toCamelArray } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { AutomationEvent } from "@shared/schema";
@@ -15,8 +15,11 @@ function StatusIcon({ status }: { status: string }) {
 
 export default function AutomationPage() {
   const { data: events = [], isLoading } = useQuery<AutomationEvent[]>({
-    queryKey: ["/api/automation-events"],
-    queryFn: () => apiRequest("GET", "/api/automation-events").then((r) => r.json()),
+    queryKey: ["automation-events"],
+    queryFn: async () => {
+      const { data } = await supabase.from("automation_events").select("*").order("triggered_at", { ascending: false });
+      return toCamelArray<AutomationEvent>(data || []);
+    },
   });
 
   const grouped: Record<string, AutomationEvent[]> = {};

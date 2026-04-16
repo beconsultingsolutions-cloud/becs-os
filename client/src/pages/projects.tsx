@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toCamelArray } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -18,12 +18,18 @@ const SERVICE_COLORS: Record<string, string> = {
 
 export default function ProjectsPage() {
   const { data: projects = [], isLoading } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
-    queryFn: () => apiRequest("GET", "/api/projects").then((r) => r.json()),
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Project>(data || []);
+    },
   });
   const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["/api/clients"],
-    queryFn: () => apiRequest("GET", "/api/clients").then((r) => r.json()),
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Client>(data || []);
+    },
   });
 
   const getClient = (id: number) => clients.find((c) => c.id === id);

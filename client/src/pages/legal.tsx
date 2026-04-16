@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,25 +23,37 @@ export default function LegalPage() {
   const qc = useQueryClient();
 
   const { data: docs = [], isLoading } = useQuery<LegalDoc[]>({
-    queryKey: ["/api/legal"],
-    queryFn: () => apiRequest("GET", "/api/legal").then((r) => r.json()),
+    queryKey: ["legal"],
+    queryFn: async () => {
+      const { data } = await supabase.from("legal_docs").select("*").order("created_at", { ascending: false });
+      return toCamelArray<LegalDoc>(data || []);
+    },
   });
   const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["/api/clients"],
-    queryFn: () => apiRequest("GET", "/api/clients").then((r) => r.json()),
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      return toCamelArray<Client>(data || []);
+    },
   });
 
   const [form, setForm] = useState({ clientId: "", type: "agreement", title: "", amount: "", status: "draft" });
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const create = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/legal", {
-      ...form,
-      clientId: form.clientId ? Number(form.clientId) : null,
-      amount: form.amount ? Number(form.amount) : null,
-    }),
+    mutationFn: async () => {
+      const { count } = await supabase.from("legal_docs").select("id", { count: "exact", head: true });
+      const docId = `BECS-DOC-${String((count || 0) + 1).padStart(3, "0")}`;
+      const { error } = await supabase.from("legal_docs").insert(toSnake({
+        ...form,
+        docId,
+        clientId: form.clientId ? Number(form.clientId) : null,
+        amount: form.amount ? Number(form.amount) : null,
+      }));
+      if (error) throw error;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/legal"] });
+      qc.invalidateQueries({ queryKey: ["legal"] });
       toast({ title: "Document created" });
       setOpen(false);
     },
@@ -49,15 +61,16 @@ export default function LegalPage() {
   });
 
   const updateDoc = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) => {
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
       const extra: any = { status };
-      if (status === "signed") extra.signedAt = new Date().toISOString();
-      if (status === "paid") extra.paidAt = new Date().toISOString();
-      return apiRequest("PATCH", `/api/legal/${id}`, extra);
+      if (status === "signed") extra.signed_at = new Date().toISOString();
+      if (status === "paid") extra.paid_at = new Date().toISOString();
+      const { error } = await supabase.from("legal_docs").update(extra).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/legal"] });
-      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      qc.invalidateQueries({ queryKey: ["legal"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       toast({ title: "Document updated" });
     },
   });
