@@ -16,6 +16,7 @@ import ProposalsPage from "@/pages/proposals";
 import LegalPage from "@/pages/legal";
 import RecapsPage from "@/pages/recaps";
 import AutomationPage from "@/pages/automation";
+import TrainingPage from "@/pages/training";
 import NotFound from "@/pages/not-found";
 import { ENTITY_LABELS, type EntityId } from "@shared/schema";
 
@@ -23,11 +24,12 @@ import {
   LayoutDashboard, Users, UserCheck, Briefcase, CalendarDays,
   FileText, Scale, BookOpen, Zap, Menu, X, ChevronRight,
   TrendingUp, LogOut, ChevronDown, Building2, Check, Loader2,
+  GraduationCap,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const opsItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: TrendingUp },
   { href: "/clients", label: "Clients", icon: UserCheck },
@@ -38,6 +40,12 @@ const navItems = [
   { href: "/recaps", label: "Recaps", icon: BookOpen },
   { href: "/automation", label: "Automation Log", icon: Zap },
 ];
+
+const resourceItems = [
+  { href: "/training", label: "Training", icon: GraduationCap },
+];
+
+const navItems = [...opsItems, ...resourceItems];
 
 // ─── Unauthorized Screen ────────────────────────────────────────────────────
 function UnauthorizedScreen({ email }: { email: string }) {
@@ -189,8 +197,33 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           <div className="px-3 mb-2">
             <span className="text-white/30 text-xs uppercase tracking-widest font-semibold px-3">Operations</span>
           </div>
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {opsItems.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg mb-0.5 text-sm font-medium transition-all",
+                  active
+                    ? "bg-[hsl(83,60%,57%)] text-[hsl(232,45%,18%)]"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                )}
+                data-testid={`nav-${label.toLowerCase().replace(/\s/g, "-")}`}
+              >
+                <Icon size={16} />
+                {label}
+                {active && <ChevronRight size={14} className="ml-auto opacity-60" />}
+              </Link>
+            );
+          })}
+
+          <div className="px-3 mt-4 mb-2">
+            <span className="text-white/30 text-xs uppercase tracking-widest font-semibold px-3">Resources</span>
+          </div>
+          {resourceItems.map(({ href, label, icon: Icon }) => {
+            const active = location.startsWith(href);
             return (
               <Link
                 key={href}
@@ -330,6 +363,7 @@ function App() {
                   <Route path="/legal" component={LegalPage} />
                   <Route path="/recaps" component={RecapsPage} />
                   <Route path="/automation" component={AutomationPage} />
+                  <Route path="/training" component={TrainingPage} />
                   <Route component={NotFound} />
                 </Switch>
               </Layout>
