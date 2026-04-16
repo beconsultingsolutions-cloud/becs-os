@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, toCamelArray } from "@/lib/supabase";
+import { useEntity } from "@/lib/entity-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { AutomationEvent } from "@shared/schema";
@@ -14,10 +15,12 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 export default function AutomationPage() {
+  const { currentEntity } = useEntity();
+
   const { data: events = [], isLoading } = useQuery<AutomationEvent[]>({
-    queryKey: ["automation-events"],
+    queryKey: ["automation-events", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("automation_events").select("*").order("triggered_at", { ascending: false });
+      const { data } = await supabase.from("automation_events").select("*").eq("entity_id", currentEntity).order("triggered_at", { ascending: false });
       return toCamelArray<AutomationEvent>(data || []);
     },
   });
@@ -61,7 +64,7 @@ export default function AutomationPage() {
                           <p className="text-sm text-foreground">{event.description}</p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <Badge variant="outline" className="text-xs">{label(event.type)}</Badge>
-                            {event.entityType && <span className="text-xs text-muted-foreground">{label(event.entityType)} #{event.entityId}</span>}
+                            {event.entityType && <span className="text-xs text-muted-foreground">{label(event.entityType)} #{event.recordId}</span>}
                             <span className="text-xs text-muted-foreground">
                               {new Date(event.triggeredAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                             </span>

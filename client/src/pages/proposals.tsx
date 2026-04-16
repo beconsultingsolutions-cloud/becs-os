@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
+import { useEntity } from "@/lib/entity-context";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,21 +24,22 @@ const statusIcons: Record<string, any> = {
 };
 
 export default function ProposalsPage() {
+  const { currentEntity } = useEntity();
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const { data: proposals = [], isLoading } = useQuery<Proposal[]>({
-    queryKey: ["proposals"],
+    queryKey: ["proposals", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("proposals").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("proposals").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Proposal>(data || []);
     },
   });
   const { data: leads = [] } = useQuery<Lead[]>({
-    queryKey: ["leads"],
+    queryKey: ["leads", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("leads").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Lead>(data || []);
     },
   });
@@ -56,12 +58,13 @@ export default function ProposalsPage() {
         price: form.price ? Number(form.price) : null,
         status: "draft",
       });
+      payload.entity_id = currentEntity;
       const { data, error } = await supabase.from("proposals").insert(payload).select().single();
       if (error) throw error;
       await supabase.from("automation_events").insert({
-        type: "proposal_created", entity_type: "lead", entity_id: data.lead_id || 0,
+        type: "proposal_created", entity_type: "lead", record_id: data.lead_id || 0,
         description: `Proposal ${proposalId} created`, status: "success",
-        triggered_at: new Date().toISOString(),
+        triggered_at: new Date().toISOString(), entity_id: currentEntity,
       });
     },
     onSuccess: () => {

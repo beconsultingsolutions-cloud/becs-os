@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
+import { useEntity } from "@/lib/entity-context";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,21 +19,22 @@ const DOC_TYPES = ["nda","agreement","sow","invoice","change_order","completion_
 const DOC_STATUSES = ["draft","sent","signed","paid","complete","archived"];
 
 export default function LegalPage() {
+  const { currentEntity } = useEntity();
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const { data: docs = [], isLoading } = useQuery<LegalDoc[]>({
-    queryKey: ["legal"],
+    queryKey: ["legal", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("legal_docs").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("legal_docs").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<LegalDoc>(data || []);
     },
   });
   const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["clients"],
+    queryKey: ["clients", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("clients").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Client>(data || []);
     },
   });
@@ -49,6 +51,7 @@ export default function LegalPage() {
         docId,
         clientId: form.clientId ? Number(form.clientId) : null,
         amount: form.amount ? Number(form.amount) : null,
+        entityId: currentEntity,
       }));
       if (error) throw error;
     },

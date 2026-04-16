@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase, toSnake, toCamelArray, toCamel } from "@/lib/supabase";
+import { useEntity } from "@/lib/entity-context";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ function label(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => 
 function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Partial<Lead> }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { currentEntity } = useEntity();
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     businessName: initial?.businessName ?? "",
@@ -54,13 +56,13 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
         // Generate lead ID
         const { count } = await supabase.from("leads").select("id", { count: "exact", head: true });
         const leadId = `BECS-L-${String((count || 0) + 1).padStart(3, "0")}`;
-        const { data, error } = await supabase.from("leads").insert({ ...toSnake(form), lead_id: leadId }).select().single();
+        const { data, error } = await supabase.from("leads").insert({ ...toSnake(form), lead_id: leadId, entity_id: currentEntity }).select().single();
         if (error) throw error;
         // Log automation event
         await supabase.from("automation_events").insert({
-          type: "lead_created", entity_type: "lead", entity_id: data.id,
+          type: "lead_created", entity_type: "lead", record_id: data.id,
           description: `Lead ${leadId} created`, status: "success",
-          triggered_at: new Date().toISOString(),
+          triggered_at: new Date().toISOString(), entity_id: currentEntity,
         });
       }
     },
@@ -175,15 +177,16 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
 }
 
 export default function LeadsPage() {
+  const { currentEntity } = useEntity();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
 
   const { data: leads = [], isLoading } = useQuery<Lead[]>({
-    queryKey: ["leads"],
+    queryKey: ["leads", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("leads").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Lead>(data || []);
     },
   });

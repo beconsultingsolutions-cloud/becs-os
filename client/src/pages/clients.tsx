@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase, toSnake, toCamelArray } from "@/lib/supabase";
+import { useEntity } from "@/lib/entity-context";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ function label(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => 
 function ClientForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Partial<Client> }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { currentEntity } = useEntity();
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     businessName: initial?.businessName ?? "",
@@ -36,12 +38,12 @@ function ClientForm({ onSuccess, initial }: { onSuccess: () => void; initial?: P
       } else {
         const { count } = await supabase.from("clients").select("id", { count: "exact", head: true });
         const clientId = `BECS-C-${String((count || 0) + 1).padStart(3, "0")}`;
-        const { data, error } = await supabase.from("clients").insert({ ...toSnake(form), client_id: clientId }).select().single();
+        const { data, error } = await supabase.from("clients").insert({ ...toSnake(form), client_id: clientId, entity_id: currentEntity }).select().single();
         if (error) throw error;
         await supabase.from("automation_events").insert({
-          type: "client_activated", entity_type: "client", entity_id: data.id,
+          type: "client_activated", entity_type: "client", record_id: data.id,
           description: `Client account ${clientId} activated`, status: "success",
-          triggered_at: new Date().toISOString(),
+          triggered_at: new Date().toISOString(), entity_id: currentEntity,
         });
       }
     },
@@ -114,14 +116,15 @@ function ClientForm({ onSuccess, initial }: { onSuccess: () => void; initial?: P
 }
 
 export default function ClientsPage() {
+  const { currentEntity } = useEntity();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
-    queryKey: ["clients"],
+    queryKey: ["clients", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("clients").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Client>(data || []);
     },
   });

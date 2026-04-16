@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, toCamelArray } from "@/lib/supabase";
+import { useEntity } from "@/lib/entity-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
@@ -34,63 +35,63 @@ function statusLabel(s: string) {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-async function fetchDashboardStats() {
-  const [leadsRes, clientsRes, projectsRes, revenueRes, newLeadsRes, meetingsRes] = await Promise.all([
-    supabase.from("leads").select("id", { count: "exact", head: true }),
-    supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("legal_docs").select("amount").eq("status", "paid"),
-    supabase.from("leads").select("id", { count: "exact", head: true }).eq("status", "new"),
-    supabase.from("meetings").select("id", { count: "exact", head: true }).eq("status", "scheduled"),
-  ]);
-  const revenue = (revenueRes.data || []).reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
-  return {
-    totalLeads: leadsRes.count || 0,
-    activeClients: clientsRes.count || 0,
-    activeProjects: projectsRes.count || 0,
-    revenue,
-    newLeads: newLeadsRes.count || 0,
-    upcomingMeetings: meetingsRes.count || 0,
-  };
-}
-
 export default function Dashboard() {
+  const { currentEntity } = useEntity();
+
   const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: fetchDashboardStats,
+    queryKey: ["dashboard-stats", currentEntity],
+    queryFn: async () => {
+      const [leadsRes, clientsRes, projectsRes, revenueRes, newLeadsRes, meetingsRes] = await Promise.all([
+        supabase.from("leads").select("id", { count: "exact", head: true }).eq("entity_id", currentEntity),
+        supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "active").eq("entity_id", currentEntity),
+        supabase.from("projects").select("id", { count: "exact", head: true }).eq("status", "active").eq("entity_id", currentEntity),
+        supabase.from("legal_docs").select("amount").eq("status", "paid").eq("entity_id", currentEntity),
+        supabase.from("leads").select("id", { count: "exact", head: true }).eq("status", "new").eq("entity_id", currentEntity),
+        supabase.from("meetings").select("id", { count: "exact", head: true }).eq("status", "scheduled").eq("entity_id", currentEntity),
+      ]);
+      const revenue = (revenueRes.data || []).reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+      return {
+        totalLeads: leadsRes.count || 0,
+        activeClients: clientsRes.count || 0,
+        activeProjects: projectsRes.count || 0,
+        revenue,
+        newLeads: newLeadsRes.count || 0,
+        upcomingMeetings: meetingsRes.count || 0,
+      };
+    },
   });
   const { data: leads = [] } = useQuery<Lead[]>({
-    queryKey: ["leads"],
+    queryKey: ["leads", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("leads").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Lead>(data || []);
     },
   });
   const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ["clients"],
+    queryKey: ["clients", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("clients").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Client>(data || []);
     },
   });
   const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["projects"],
+    queryKey: ["projects", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("projects").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Project>(data || []);
     },
   });
   const { data: meetings = [] } = useQuery<Meeting[]>({
-    queryKey: ["meetings"],
+    queryKey: ["meetings", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("meetings").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase.from("meetings").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
       return toCamelArray<Meeting>(data || []);
     },
   });
   const { data: events = [] } = useQuery<AutomationEvent[]>({
-    queryKey: ["automation-events"],
+    queryKey: ["automation-events", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("automation_events").select("*").order("triggered_at", { ascending: false });
+      const { data } = await supabase.from("automation_events").select("*").eq("entity_id", currentEntity).order("triggered_at", { ascending: false });
       return toCamelArray<AutomationEvent>(data || []);
     },
   });
