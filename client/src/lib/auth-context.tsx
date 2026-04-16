@@ -8,7 +8,7 @@ interface AuthState {
   supabaseUser: SupabaseUser | null;
   becsUser: BecsUser | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthState>({
   supabaseUser: null,
   becsUser: null,
   loading: true,
-  signInWithGoogle: async () => {},
+  signIn: async () => ({ error: null }),
   signOut: async () => {},
 });
 
@@ -70,15 +70,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [fetchBecsUser]);
 
-  const signInWithGoogle = async () => {
-    // Get the current URL for redirect
-    const redirectUrl = window.location.origin + window.location.pathname;
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: redirectUrl,
-      },
-    });
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
   };
 
   const signOut = async () => {
@@ -89,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, supabaseUser, becsUser, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ session, supabaseUser, becsUser, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
