@@ -208,12 +208,12 @@ const PieTooltip = ({ active, payload }: any) => {
 const RADIAN = Math.PI / 180;
 function renderPieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) {
   if (percent < 0.05) return null;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="bold">
-      {pct(percent * 100)}
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
+      {percent >= 0.99 ? name : pct(percent * 100)}
     </text>
   );
 }
@@ -340,7 +340,7 @@ function RevenueTab({ entity, dateRange }: { entity: string; dateRange: DateRang
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={serviceTypePie} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
+                <Pie data={serviceTypePie} cx="50%" cy="50%" outerRadius={110} innerRadius={40} paddingAngle={2} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
                   {serviceTypePie.map((_entry, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
@@ -374,7 +374,7 @@ function RevenueTab({ entity, dateRange }: { entity: string; dateRange: DateRang
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={paymentMethodPie} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
+                <Pie data={paymentMethodPie} cx="50%" cy="50%" outerRadius={110} innerRadius={40} paddingAngle={2} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
                   {paymentMethodPie.map((_entry, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
@@ -516,7 +516,7 @@ function PipelineTab({ entity, dateRange }: { entity: string; dateRange: DateRan
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={sourceData} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
+                <Pie data={sourceData} cx="50%" cy="50%" outerRadius={110} innerRadius={40} paddingAngle={2} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
                   {sourceData.map((_entry, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
@@ -663,7 +663,7 @@ function ClientHealthTab({ entity, dateRange }: { entity: string; dateRange: Dat
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={projectStatusPie} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
+                <Pie data={projectStatusPie} cx="50%" cy="50%" outerRadius={110} innerRadius={40} paddingAngle={2} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
                   {projectStatusPie.map((_entry, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
@@ -717,7 +717,7 @@ function ClientHealthTab({ entity, dateRange }: { entity: string; dateRange: Dat
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={clientStatusPie} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
+                <Pie data={clientStatusPie} cx="50%" cy="50%" outerRadius={110} innerRadius={40} paddingAngle={2} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
                   {clientStatusPie.map((_entry, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
@@ -839,7 +839,7 @@ function ActivityTab({ entity, dateRange }: { entity: string; dateRange: DateRan
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={meetingTypePie} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
+                <Pie data={meetingTypePie} cx="50%" cy="50%" outerRadius={110} innerRadius={40} paddingAngle={2} dataKey="value" labelLine={false} label={renderPieLabel} isAnimationActive={true}>
                   {meetingTypePie.map((_entry, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
