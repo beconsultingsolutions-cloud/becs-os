@@ -16,6 +16,7 @@ import ProposalsPage from "@/pages/proposals";
 import LegalPage from "@/pages/legal";
 import RecapsPage from "@/pages/recaps";
 import AutomationPage from "@/pages/automation";
+import ReportsPage from "@/pages/reports";
 import TrainingPage from "@/pages/training";
 import NotFound from "@/pages/not-found";
 import { ENTITY_LABELS, type EntityId } from "@shared/schema";
@@ -24,7 +25,7 @@ import {
   LayoutDashboard, Users, UserCheck, Briefcase, CalendarDays,
   FileText, Scale, BookOpen, Zap, Menu, X, ChevronRight,
   TrendingUp, LogOut, ChevronDown, Building2, Check, Loader2,
-  GraduationCap,
+  GraduationCap, BarChart3,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ const opsItems = [
 ];
 
 const resourceItems = [
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/training", label: "Training", icon: GraduationCap },
 ];
 
@@ -363,6 +365,7 @@ function App() {
                   <Route path="/legal" component={LegalPage} />
                   <Route path="/recaps" component={RecapsPage} />
                   <Route path="/automation" component={AutomationPage} />
+                  <Route path="/reports" component={ReportsPage} />
                   <Route path="/training" component={TrainingPage} />
                   <Route component={NotFound} />
                 </Switch>
