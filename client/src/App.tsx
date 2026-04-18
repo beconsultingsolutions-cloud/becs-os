@@ -25,6 +25,10 @@ import IntakeBookPage from "@/pages/portal/intake-book";
 import ProposalReviewPage from "@/pages/portal/proposal-review";
 import PortalDashboardPage from "@/pages/portal/portal-dashboard";
 import PortalPlaceholderPage from "@/pages/portal/portal-placeholder";
+import PortalMessagesPage from "@/pages/portal/portal-messages";
+import PortalDocumentsPage from "@/pages/portal/portal-documents";
+import PortalLearnPage from "@/pages/portal/portal-learn";
+import PortalLearnModulePage from "@/pages/portal/portal-learn-module";
 import { ENTITY_LABELS, type EntityId, type UserRole } from "@shared/schema";
 
 import {
@@ -419,17 +423,23 @@ function AppRoutes() {
         <Route path="/portal/projects/:id">
           <PortalPlaceholderPage title="Project detail" />
         </Route>
-        <Route path="/portal/messages">
-          <PortalPlaceholderPage title="Messages" />
+        {/* Singular /project alias → projects placeholder */}
+        <Route path="/portal/project">
+          <PortalPlaceholderPage title="Projects" />
         </Route>
-        <Route path="/portal/documents">
-          <PortalPlaceholderPage title="Documents" />
+        <Route path="/portal/milestones">
+          <PortalPlaceholderPage title="Milestones" />
         </Route>
-        <Route path="/portal/learn">
-          <PortalPlaceholderPage title="Your program" />
+        <Route path="/portal/account">
+          <PortalPlaceholderPage title="Account settings" />
         </Route>
-        <Route path="/portal/learn/:moduleId">
-          <PortalPlaceholderPage title="Module" />
+        <Route path="/portal/messages" component={PortalMessagesPage} />
+        <Route path="/portal/documents" component={PortalDocumentsPage} />
+        <Route path="/portal/learn" component={PortalLearnPage} />
+        <Route path="/portal/learn/:moduleId" component={PortalLearnModulePage} />
+        {/* Catch-all under /portal: friendly placeholder, not bare 404 */}
+        <Route path="/portal/:rest*">
+          <PortalPlaceholderPage title="Coming soon" />
         </Route>
         <Route component={NotFound} />
       </Switch>

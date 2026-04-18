@@ -19,6 +19,7 @@ export const SERVICE_TYPES = [
   "accelerator",
   "brand_identity",
   "gtm_launch",
+  "compliance_coaching",
   "retainer",
   "add_on",
 ] as const;
@@ -32,6 +33,7 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
   accelerator: "B.E. Accelerator Program",
   brand_identity: "Brand Identity & Positioning",
   gtm_launch: "Go-To-Market Launch Strategy",
+  compliance_coaching: "Compliance Coaching",
   retainer: "Retainer",
   add_on: "Add-On",
 };

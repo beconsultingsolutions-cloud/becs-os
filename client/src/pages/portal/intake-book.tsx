@@ -24,8 +24,10 @@ function generateSlots(): { dateKey: string; label: string; times: { iso: string
       timeZone: tz,
     });
     const times = [];
-    for (let hour = 10; hour < 16; hour++) {
-      for (const minute of [0, 30]) {
+    for (let hour = 10; hour <= 16; hour++) {
+      // Include 4:00 PM slot, stop before 4:30 PM
+      const minutes = hour === 16 ? [0] : [0, 30];
+      for (const minute of minutes) {
         const slot = new Date(d);
         slot.setHours(hour, minute, 0, 0);
         times.push({

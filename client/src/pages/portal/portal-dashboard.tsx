@@ -6,6 +6,7 @@ import { supabase, toCamelArray } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { SERVICE_LABELS, type ServiceType } from "@shared/schema";
 import {
+  AlertCircle,
   ArrowRight,
   Briefcase,
   CalendarClock,
@@ -40,6 +41,7 @@ interface PortalMilestoneRow {
   dueDate: string | null;
   status: string;
   projectId: number;
+  clientActionRequired: boolean | null;
 }
 
 interface PortalMessageRow {
@@ -279,11 +281,24 @@ export default function PortalDashboardPage() {
                 {milestones.map((m) => (
                   <li key={m.id} className="px-6 py-3 flex items-center justify-between text-sm">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                        <CheckCircle2 size={14} className="text-slate-400" />
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          m.clientActionRequired
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {m.clientActionRequired ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-medium text-slate-900 truncate">{m.title}</div>
+                        <div className="font-medium text-slate-900 truncate flex items-center gap-2">
+                          {m.title}
+                          {m.clientActionRequired && (
+                            <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              Action needed
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500 capitalize">{m.status.replace("_", " ")}</div>
                       </div>
                     </div>
