@@ -7,7 +7,7 @@ import { Loader2, Lock } from "lucide-react";
 import { useState } from "react";
 
 export default function LoginPage() {
-  const { signIn, loading } = useAuth();
+  const { signIn, loading, authError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -92,9 +92,9 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
+            {(error || authError) && (
               <div className="text-red-400 text-xs text-center bg-red-400/10 rounded-lg py-2 px-3" data-testid="text-login-error">
-                {error}
+                {error || authError}
               </div>
             )}
 

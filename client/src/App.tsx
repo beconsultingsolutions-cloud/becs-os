@@ -322,12 +322,38 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 // ─── Auth Guard ──────────────────────────────────────────────────────────────
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, becsUser, loading } = useAuth();
+  const { session, becsUser, loading, authError } = useAuth();
+  const [slowBoot, setSlowBoot] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setSlowBoot(false);
+      return;
+    }
+    const t = setTimeout(() => setSlowBoot(true), 6000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="animate-spin text-primary" size={32} />
+        {slowBoot && (
+          <div className="text-center max-w-sm px-4">
+            <p className="text-sm text-white/60">Still loading…</p>
+            <p className="text-xs text-white/40 mt-1">
+              If this keeps hanging,{" "}
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="underline hover:text-white/70"
+              >
+                reload the page
+              </button>
+              {authError ? ` (${authError})` : ""}.
+            </p>
+          </div>
+        )}
       </div>
     );
   }
