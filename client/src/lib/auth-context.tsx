@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
-import { supabase, toCamel } from "@/lib/supabase";
+import { supabase, toCamel, clearSupabaseSession } from "@/lib/supabase";
 import type { User as BecsUser } from "@shared/schema";
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -11,6 +11,8 @@ interface AuthState {
   authError: string | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  /** Nuclear option exposed to the UI: wipe local session and reload. */
+  resetSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -21,12 +23,32 @@ const AuthContext = createContext<AuthState>({
   authError: null,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
+  resetSession: async () => {},
 });
 
 // Safety net: never allow the spinner to hang forever. If Supabase doesn't
 // respond within 10 s we show the login screen with an error rather than
 // leaving the user staring at a spinner.
 const AUTH_BOOT_TIMEOUT_MS = 10_000;
+
+// Error messages that indicate the locally-persisted refresh token is no
+// longer valid. When we see these we auto-clear storage and bounce the user
+// to the login screen — no manual "clear site data" required.
+const STALE_TOKEN_PATTERNS = [
+  "refresh_token_not_found",
+  "Invalid Refresh Token",
+  "refresh token not found",
+  "Refresh Token Not Found",
+  "invalid refresh token",
+  "JWT expired",
+  "token is expired",
+];
+
+function isStaleTokenError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (!msg) return false;
+  return STALE_TOKEN_PATTERNS.some((p) => msg.toLowerCase().includes(p.toLowerCase()));
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -38,6 +60,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Tracks the email we've most recently fetched so we don't double-fetch
   // when both getSession() and onAuthStateChange fire on initial load.
   const lastFetchedEmailRef = useRef<string | null>(null);
+  // Reentrancy guard: multiple stale-token errors firing at once (getSession +
+  // onAuthStateChange) should only trigger one recovery cycle.
+  const recoveringRef = useRef(false);
+
+  /** Wipe the local session and return the user to a clean login state. */
+  const resetSession = useCallback(async () => {
+    if (recoveringRef.current) return;
+    recoveringRef.current = true;
+    try {
+      await clearSupabaseSession();
+    } finally {
+      setSession(null);
+      setSupabaseUser(null);
+      setBecsUser(null);
+      setAuthError(null);
+      lastFetchedEmailRef.current = null;
+      setLoading(false);
+      // Reload so any in-flight queries / cached React state starts clean.
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    }
+  }, []);
 
   // Fetch the BECS user record from our users table.
   // Uses .maybeSingle() so zero rows returns null instead of throwing,
@@ -59,6 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       if (error) {
         console.error("[auth] fetchBecsUser error:", error);
+        if (isStaleTokenError(error)) {
+          await resetSession();
+          return null;
+        }
         setAuthError(error.message);
         return null;
       }
@@ -75,13 +124,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     } catch (err) {
       console.error("[auth] fetchBecsUser threw:", err);
+      if (isStaleTokenError(err)) {
+        await resetSession();
+        return null;
+      }
       setAuthError(err instanceof Error ? err.message : "Failed to load user profile");
       return null;
     }
     // becsUser intentionally excluded: we only use it for the cache check,
     // re-running this callback when becsUser changes would defeat the purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resetSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +157,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (error) {
           console.error("[auth] getSession error:", error);
+          if (isStaleTokenError(error)) {
+            await resetSession();
+            return;
+          }
           setAuthError(error.message);
           setLoading(false);
           return;
@@ -116,9 +173,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setLoading(false);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (cancelled) return;
         console.error("[auth] getSession threw:", err);
+        if (isStaleTokenError(err)) {
+          await resetSession();
+          return;
+        }
         setAuthError(err instanceof Error ? err.message : "Failed to load session");
         setLoading(false);
       });
@@ -128,6 +189,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, s) => {
       if (cancelled) return;
+      // TOKEN_REFRESHED with no session means the refresh call failed silently.
+      // Treat it as a stale session and recover.
+      if (event === "TOKEN_REFRESHED" && !s) {
+        console.warn("[auth] TOKEN_REFRESHED fired with no session — resetting");
+        await resetSession();
+        return;
+      }
       setSession(s);
       setSupabaseUser(s?.user ?? null);
       if (s?.user?.email) {
@@ -148,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(bootTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchBecsUser]);
+  }, [fetchBecsUser, resetSession]);
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);
@@ -158,17 +226,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setSupabaseUser(null);
-    setBecsUser(null);
-    setAuthError(null);
-    lastFetchedEmailRef.current = null;
+    try {
+      await clearSupabaseSession();
+    } finally {
+      setSession(null);
+      setSupabaseUser(null);
+      setBecsUser(null);
+      setAuthError(null);
+      lastFetchedEmailRef.current = null;
+    }
   };
 
   return (
     <AuthContext.Provider
-      value={{ session, supabaseUser, becsUser, loading, authError, signIn, signOut }}
+      value={{ session, supabaseUser, becsUser, loading, authError, signIn, signOut, resetSession }}
     >
       {children}
     </AuthContext.Provider>

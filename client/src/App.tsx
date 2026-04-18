@@ -68,7 +68,7 @@ function isPortalPath(path: string): boolean {
 
 // ─── Unauthorized Screen ────────────────────────────────────────────────────
 function UnauthorizedScreen({ email }: { email: string }) {
-  const { signOut } = useAuth();
+  const { resetSession } = useAuth();
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(232,45%,12%)] p-4">
       <div className="w-full max-w-sm text-center space-y-6">
@@ -84,7 +84,7 @@ function UnauthorizedScreen({ email }: { email: string }) {
           <p className="text-white/40 text-xs mt-1">Contact your administrator to request access.</p>
         </div>
         <button
-          onClick={signOut}
+          onClick={resetSession}
           className="text-sm text-white/50 hover:text-white underline underline-offset-2 transition-colors"
           data-testid="button-signout-unauthorized"
         >
@@ -334,6 +334,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
 
 // ─── Loading ─────────────────────────────────────────────────────────────────
 function AppLoading({ authError }: { authError: string | null }) {
+  const { resetSession } = useAuth();
   const [slowBoot, setSlowBoot] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setSlowBoot(true), 6000);
@@ -341,22 +342,33 @@ function AppLoading({ authError }: { authError: string | null }) {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-4">
       <Loader2 className="animate-spin text-primary" size={32} />
       {slowBoot && (
-        <div className="text-center max-w-sm px-4">
-          <p className="text-sm text-white/60">Still loading…</p>
+        <div className="text-center max-w-sm">
+          <p className="text-sm text-white/70">Still loading…</p>
           <p className="text-xs text-white/40 mt-1">
-            If this keeps hanging,{" "}
+            If this keeps hanging, your session may be stuck.
+            {authError ? ` (${authError})` : ""}
+          </p>
+          <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="underline hover:text-white/70"
+              className="text-xs px-3 py-2 rounded-md border border-white/15 text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+              data-testid="reload-button"
             >
-              reload the page
+              Reload page
             </button>
-            {authError ? ` (${authError})` : ""}.
-          </p>
+            <button
+              type="button"
+              onClick={() => resetSession()}
+              className="text-xs px-3 py-2 rounded-md bg-[hsl(83,60%,57%)] text-[hsl(232,45%,18%)] font-semibold hover:bg-[hsl(83,60%,50%)] transition-colors"
+              data-testid="reset-session-button"
+            >
+              Reset session
+            </button>
+          </div>
         </div>
       )}
     </div>
