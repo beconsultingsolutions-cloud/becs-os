@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { SERVICE_TEMPLATES } from "@/lib/service-templates";
 import {
   ChevronDown,
   ChevronUp,
@@ -37,6 +38,13 @@ import {
   FileCheck,
   GraduationCap,
   Lock,
+  ListChecks,
+  Target,
+  Repeat2,
+  BadgeDollarSign,
+  ClipboardCheck,
+  PenLine,
+  MapPin,
 } from "lucide-react";
 
 // ─── Brand Colors ──────────────────────────────────────────────────────────
@@ -1055,6 +1063,1061 @@ function Module5Content() {
   );
 }
 
+
+// ─── SERVICE COLOR MAP for training modules ──────────────────────────────────
+const SERVICE_BADGE_COLORS: Record<string, string> = {
+  reality_check: "#7C3AED",
+  foundation_builder: "#2563EB",
+  business_launch: "#16A34A",
+  strategy_ops_session: "#D97706",
+  accelerator: "#0D9488",
+  brand_identity: "#DB2777",
+  gtm_launch: "#0891B2",
+};
+
+// ─── Module A: Admin Process — Intake ────────────────────────────────────────
+
+function ModuleIntakeContent() {
+  const [openCard, setOpenCard] = useState<string | null>(null);
+
+  const intakeSteps = [
+    {
+      number: 1,
+      title: "Discovery Call",
+      icon: <PhoneCall size={16} />,
+      color: "#6366F1",
+      content: (
+        <div className="space-y-2 mt-2">
+          <p>
+            The discovery call is the first live touchpoint. Its goal is to
+            understand the lead's situation deeply enough to recommend the right
+            service.
+          </p>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-3 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            What to ask:
+          </p>
+          <BulletList
+            items={[
+              "What does your business do and who do you serve?",
+              "What's working well right now, and what's your biggest challenge?",
+              "What have you tried before to solve this? What happened?",
+              "What would a win look like at the end of working together?",
+              "What's your timeline, and is this decision yours to make?",
+              "What's your comfort level with investment in consulting support?",
+            ]}
+          />
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-3 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Where to record it in BECS OS:
+          </p>
+          <BulletList
+            items={[
+              <><strong>Leads page</strong> — update the lead record with qualification notes, service interest, and recommended path</>,
+              <><strong>Meetings page</strong> — log the discovery call with type = "discovery", add notes and action items</>,
+            ]}
+          />
+          <TipBox>
+            Set the lead's <strong>Recommended Path</strong> field immediately
+            after the call: A (immediate fit), B (nurture), C (not yet), D (not
+            a fit). This drives everything downstream.
+          </TipBox>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            What triggers next:
+          </p>
+          <p className="text-sm">
+            Path A/B → move to Qualification. Path C → set a follow-up reminder.
+            Path D → mark lead as "not a fit" with a loss reason.
+          </p>
+        </div>
+      ),
+    },
+    {
+      number: 2,
+      title: "Qualification",
+      icon: <Eye size={16} />,
+      color: "#F59E0B",
+      content: (
+        <div className="space-y-2 mt-2">
+          <p>
+            Qualification confirms the lead is the right client for the right
+            service before any proposal is written.
+          </p>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Qualification checklist:
+          </p>
+          <BulletList
+            items={[
+              "Lead's goal is achievable within the scope of a BECS service",
+              "Budget comfort aligns with the proposed service price",
+              "Decision-maker is on the call (or clearly identified)",
+              "Timeline is realistic — not expecting results in days",
+              "No major red flags: unrealistic expectations, prior bad-fit history, combative tone",
+            ]}
+          />
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Where to record it in BECS OS:
+          </p>
+          <BulletList
+            items={[
+              <><strong>Leads page</strong> — update status to "assessment", fill Qualification Notes field, set Recommended Path</>,
+              <><strong>Opportunities page</strong> — create an opportunity record tied to this lead with the service type and estimated amount</>,
+            ]}
+          />
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            What triggers next:
+          </p>
+          <p className="text-sm">
+            Qualified lead → draft the proposal. Unqualified → update lead
+            status to "not a fit" or "nurture" with notes.
+          </p>
+        </div>
+      ),
+    },
+    {
+      number: 3,
+      title: "Proposal",
+      icon: <Send size={16} />,
+      color: "#0EA5E9",
+      content: (
+        <div className="space-y-2 mt-2">
+          <p>
+            Create a formal proposal on the Proposals page tied to the qualified
+            lead. The proposal is the bridge between interest and commitment.
+          </p>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Fields to complete:
+          </p>
+          <BulletList
+            items={[
+              "Service type — select the correct service from the 7 core offerings",
+              "Price — use the standard price from the service template (do not discount without approval)",
+              "Timeline — use the standard duration from the service template",
+              "Scope — summarize what is and is not included",
+              "Deliverables — list the key deliverables from the service template",
+              "Included meetings — specify meeting cadence",
+              "NDA required — check if NDA should accompany the proposal",
+            ]}
+          />
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Where to record it in BECS OS:
+          </p>
+          <BulletList
+            items={[
+              <><strong>Proposals page</strong> — create proposal record, set status to "draft", link to lead record</>,
+              <><strong>Proposals page</strong> — update status to "sent" once delivered to client</>,
+            ]}
+          />
+          <TipBox>
+            Always send proposals within 24 hours of a qualified discovery call
+            while momentum is high. A delayed proposal signals low urgency to
+            the prospect.
+          </TipBox>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            What triggers next:
+          </p>
+          <p className="text-sm">
+            Proposal accepted → move to Contract & Pay. Proposal viewed but no
+            response after 3 days → send a follow-up. Proposal declined →
+            update opportunity to "lost" with reason.
+          </p>
+        </div>
+      ),
+    },
+    {
+      number: 4,
+      title: "Contract & Pay",
+      icon: <FileCheck size={16} />,
+      color: "#22C55E",
+      content: (
+        <div className="space-y-2 mt-2">
+          <p>
+            Once the proposal is accepted, execute the legal documents and
+            collect payment before any work begins.
+          </p>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Contract checklist:
+          </p>
+          <BulletList
+            items={[
+              "Identify required legal docs from service template (SOW is always required)",
+              "Send SOW for e-signature or review",
+              "Send NDA if flagged in the proposal (required for Business Launch, Accelerator, GTM Launch)",
+              "Collect payment authorization if payment plan applies",
+              "Collect first payment (or full payment) before activating the project",
+            ]}
+          />
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            Where to record it in BECS OS:
+          </p>
+          <BulletList
+            items={[
+              <><strong>Legal & Docs page</strong> — create records for each document (SOW, NDA, payment auth), track signature status</>,
+              <><strong>Legal & Docs page</strong> — record payment and mark paidAt date once collected</>,
+              <><strong>Proposals page</strong> — update proposal status to "accepted" and set acceptedAt date</>,
+            ]}
+          />
+          <TipBox>
+            Do not create the client record or project until payment is
+            collected and at least the SOW is signed. This protects BECS from
+            doing unpaid work.
+          </TipBox>
+          <p
+            className="font-medium text-xs uppercase tracking-wider mt-2 mb-1"
+            style={{ color: GRAY_BLUE }}
+          >
+            What triggers next:
+          </p>
+          <p className="text-sm">
+            Docs signed + payment collected → proceed to Admin Process: Setup.
+            Create the client record and activate the project.
+          </p>
+        </div>
+      ),
+    },
+  ];
+
+  const serviceCards = [
+    {
+      key: "reality_check",
+      name: "P.E.S. Reality Check",
+      price: "$497",
+      duration: "90 min",
+      idealClient:
+        "Established business owner who feels stuck or unclear on the root cause of stagnation. Typically 1–5 years in business, revenue present but growth plateaued.",
+      discoveryEmphasis:
+        "Position as a low-risk, high-clarity investment. Emphasize the written report and actionable next step they'll walk away with.",
+    },
+    {
+      key: "foundation_builder",
+      name: "Foundation Builder",
+      price: "$2,497",
+      duration: "4–6 wks",
+      idealClient:
+        "Early-stage business owner (0–2 years) who has started but lacks structure. No clear processes, inconsistent revenue, or undefined offers.",
+      discoveryEmphasis:
+        "Focus on the 3 SOPs deliverable and 90-day roadmap — tangible artifacts they'll own. Weekly sessions signal ongoing support.",
+    },
+    {
+      key: "business_launch",
+      name: "P.E.S. Business Launch",
+      price: "$5,495",
+      duration: "90 days",
+      idealClient:
+        "Pre-revenue or pre-launch entrepreneur ready to commit fully. Has a concept but needs the full end-to-end system to go to market confidently.",
+      discoveryEmphasis:
+        "Lead with transformation: 'You'll go from idea to operating business in 90 days.' Highlight the payment plan to reduce barrier.",
+    },
+    {
+      key: "strategy_ops_session",
+      name: "Strategy & Ops Session",
+      price: "$995",
+      duration: "90 min",
+      idealClient:
+        "Experienced business owner with a specific, well-defined problem (pricing decision, team restructure, launch strategy) who doesn't need a full engagement.",
+      discoveryEmphasis:
+        "Confirm they have a specific, solvable problem. If the problem is unclear, recommend a Reality Check first.",
+    },
+    {
+      key: "accelerator",
+      name: "B.E. Accelerator",
+      price: "$4,995",
+      duration: "90 days",
+      idealClient:
+        "Revenue-generating business ($50K+ ARR) that's hit a growth ceiling. Has team, has offer, but systems or strategy aren't scaling.",
+      discoveryEmphasis:
+        "Ask about current revenue and growth rate. Focus pitch on the KPI tracking and accountability structure — not just strategy.",
+    },
+    {
+      key: "brand_identity",
+      name: "Brand Identity & Positioning",
+      price: "From $4,500",
+      duration: "3–5 wks",
+      idealClient:
+        "Business with a real offer but inconsistent or unclear brand. Struggling to articulate value, attract the right clients, or stand out in the market.",
+      discoveryEmphasis:
+        "Ask: 'If I asked 5 of your ideal clients to describe your brand in one sentence, would they all say the same thing?' Use confusion as the pain trigger.",
+    },
+    {
+      key: "gtm_launch",
+      name: "Go-To-Market Launch",
+      price: "From $5,500",
+      duration: "4–6 wks",
+      idealClient:
+        "Business launching a new product, service, or brand pivot. Has the offer built but no clear strategy for reaching the market and converting interest.",
+      discoveryEmphasis:
+        "Focus on launch risk and missed revenue from a weak strategy. Ask about their last launch and what they'd do differently.",
+    },
+  ];
+
+  return (
+    <div>
+      <SectionHeading>The Intake Flow: Discovery → Proposal → Contract</SectionHeading>
+      <p className="text-sm text-gray-700 mb-4">
+        Every BECS client begins as a lead. The intake process converts that
+        lead into a signed, paying client through four sequential steps. Each
+        step has a clear trigger that moves the lead forward — or disqualifies
+        them respectfully.
+      </p>
+
+      {intakeSteps.map((step) => (
+        <PESStep
+          key={step.number}
+          number={step.number}
+          title={step.title}
+          icon={step.icon}
+          color={step.color}
+        >
+          {step.content}
+        </PESStep>
+      ))}
+
+      <SectionHeading>Per-Service Quick Reference</SectionHeading>
+      <p className="text-sm text-gray-700 mb-3">
+        Use these cards during a discovery call to quickly orient around the
+        right service, set accurate expectations, and emphasize what matters
+        most to a prospective client.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {serviceCards.map((s) => (
+          <div
+            key={s.key}
+            className="rounded-lg border p-3"
+            style={{
+              borderColor: `${SERVICE_BADGE_COLORS[s.key]}30`,
+              background: `${SERVICE_BADGE_COLORS[s.key]}06`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p
+                className="font-semibold text-sm"
+                style={{ color: SERVICE_BADGE_COLORS[s.key] }}
+              >
+                {s.name}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="text-xs font-bold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: `${SERVICE_BADGE_COLORS[s.key]}15`,
+                    color: SERVICE_BADGE_COLORS[s.key],
+                  }}
+                >
+                  {s.price}
+                </span>
+                <span className="text-xs text-gray-400">{s.duration}</span>
+              </div>
+            </div>
+            <p
+              className="text-xs font-semibold uppercase tracking-wider mb-1"
+              style={{ color: GRAY_BLUE }}
+            >
+              Ideal client
+            </p>
+            <p className="text-xs text-gray-600 mb-2">{s.idealClient}</p>
+            <p
+              className="text-xs font-semibold uppercase tracking-wider mb-1"
+              style={{ color: GRAY_BLUE }}
+            >
+              Discovery call emphasis
+            </p>
+            <p className="text-xs text-gray-600">{s.discoveryEmphasis}</p>
+          </div>
+        ))}
+      </div>
+
+      <TipBox>
+        If a lead's problem doesn't clearly map to one of the seven services,
+        lead with the Reality Check ($497). It's a low-barrier entry point that
+        clarifies which service is the right fit — and often closes the next
+        engagement naturally.
+      </TipBox>
+    </div>
+  );
+}
+
+// ─── Module B: Admin Process — Setup ─────────────────────────────────────────
+
+function ModuleSetupContent() {
+  const [openService, setOpenService] = useState<string | null>(null);
+
+  const setupSteps = [
+    {
+      number: 1,
+      title: "Create the Client Record",
+      icon: <UserPlus size={16} />,
+      color: "#6366F1",
+      desc: "Navigate to the Clients page and click '+ New Client'. Link the client to the existing lead record by selecting the lead ID. Fill in name, business name, email, phone, and portal access settings.",
+      tip: "Always link to the lead record — this preserves the full history from first inquiry through active engagement.",
+      becsPage: "Clients page",
+    },
+    {
+      number: 2,
+      title: "Generate the Project",
+      icon: <FolderKanban size={16} />,
+      color: "#0EA5E9",
+      desc: "Go to the Projects page and create a new project. Select the correct service type (this drives milestone scaffolding and reporting). Set start date and target end date based on the service template duration.",
+      tip: "Set the project title to include the client name and service for easy identification, e.g. 'Jane Smith — Foundation Builder'.",
+      becsPage: "Projects page",
+    },
+    {
+      number: 3,
+      title: "Seed Milestones from Service Template",
+      icon: <ListChecks size={16} />,
+      color: "#16A34A",
+      desc: "On the project record, add each milestone from the service template. Use the prescribed milestone titles and descriptions as a starting point. Assign due dates based on the target end date working backwards.",
+      tip: "Milestone titles in the project should match the service template exactly — this makes progress tracking and reporting consistent across all engagements.",
+      becsPage: "Projects page (milestone section)",
+    },
+    {
+      number: 4,
+      title: "Kick Off the 5C Onboarding",
+      icon: <Rocket size={16} />,
+      color: "#D97706",
+      desc: "On the client record, add onboarding items for all five phases: Compliance, Clarity, Culture, Connection, and Checkback. Use the service template's prescribed onboarding items as your starting checklist.",
+      tip: "Complete Compliance items (signed docs, payment) first before moving to Clarity and Culture. Never grant portal access before the SOW is signed.",
+      becsPage: "Client detail page (Onboarding tab)",
+    },
+    {
+      number: 5,
+      title: "Grant Portal Access",
+      icon: <Globe size={16} />,
+      color: "#7C3AED",
+      desc: "On the client record, toggle 'Portal Access Active' to true. The client will receive a portal invitation email. Walk the client through portal navigation on the first session.",
+      tip: "Portal access should only be activated after all Compliance onboarding items are complete.",
+      becsPage: "Clients page (edit client record)",
+    },
+  ];
+
+  const phaseColors: Record<string, string> = {
+    compliance: "#EF4444",
+    clarity: "#F59E0B",
+    culture: "#8B5CF6",
+    connection: "#0EA5E9",
+    checkback: "#22C55E",
+  };
+
+  const phaseIcons: Record<string, React.ReactNode> = {
+    compliance: <Scale size={12} />,
+    clarity: <Eye size={12} />,
+    culture: <Users size={12} />,
+    connection: <Handshake size={12} />,
+    checkback: <RefreshCw size={12} />,
+  };
+
+  return (
+    <div>
+      <SectionHeading>Turning an Accepted Proposal into an Active Client</SectionHeading>
+      <p className="text-sm text-gray-700 mb-4">
+        Setup is the transition from "sold" to "started." These five steps
+        convert a signed proposal into a fully active BECS client with a live
+        project, seeded milestones, and a running onboarding checklist.
+      </p>
+
+      <div className="space-y-2 mb-6">
+        {setupSteps.map((step) => (
+          <div
+            key={step.number}
+            className="rounded-lg border overflow-hidden"
+            style={{ borderColor: "#E5E7EB" }}
+          >
+            <div
+              className="flex items-center gap-3 p-3"
+              style={{ background: `${step.color}06` }}
+            >
+              <span
+                className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                style={{ background: `${step.color}20` }}
+              >
+                <span style={{ color: step.color }}>{step.icon}</span>
+              </span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: GRAY_BLUE }}
+                  >
+                    Step {step.number}
+                  </span>
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ background: `${DARK_BLUE}12`, color: DARK_BLUE }}
+                  >
+                    {step.becsPage}
+                  </span>
+                </div>
+                <p className="font-semibold text-sm" style={{ color: DARK_BLUE }}>
+                  {step.title}
+                </p>
+              </div>
+            </div>
+            <div className="px-4 pb-3 pt-2 text-sm text-gray-700">
+              <p className="mb-2">{step.desc}</p>
+              <div
+                className="flex gap-2 rounded p-2 text-xs"
+                style={{ background: LIGHT_GREEN }}
+              >
+                <Lightbulb size={12} className="shrink-0 mt-0.5" style={{ color: DARK_BLUE }} />
+                <span style={{ color: DARK_BLUE }}>{step.tip}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <SectionHeading>Per-Service Setup Reference</SectionHeading>
+      <p className="text-sm text-gray-700 mb-3">
+        Click any service below to view its prescribed milestones, 5C onboarding
+        checklist, and required legal documents — pull these directly when
+        setting up a new project.
+      </p>
+
+      <div className="space-y-2">
+        {SERVICE_TEMPLATES.map((svc) => (
+          <div
+            key={svc.key}
+            className="rounded-lg border overflow-hidden"
+            style={{ borderColor: "#E5E7EB" }}
+          >
+            <button
+              onClick={() =>
+                setOpenService(openService === svc.key ? null : svc.key)
+              }
+              className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50 transition-colors"
+            >
+              <span
+                className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+                style={{
+                  background: `${SERVICE_BADGE_COLORS[svc.key] ?? DARK_BLUE}20`,
+                }}
+              >
+                <FolderKanban
+                  size={14}
+                  style={{ color: SERVICE_BADGE_COLORS[svc.key] ?? DARK_BLUE }}
+                />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm" style={{ color: DARK_BLUE }}>
+                  {svc.name}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {svc.price} · {svc.duration} · {svc.meetingsIncluded} meetings
+                </p>
+              </div>
+              {openService === svc.key ? (
+                <ChevronUp size={16} className="text-gray-400 shrink-0" />
+              ) : (
+                <ChevronDown size={16} className="text-gray-400 shrink-0" />
+              )}
+            </button>
+
+            {openService === svc.key && (
+              <div
+                className="px-4 pb-4 pt-1 border-t space-y-4"
+                style={{ borderColor: "#F3F4F6" }}
+              >
+                {/* Milestones */}
+                <div>
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wider mt-3 mb-2"
+                    style={{ color: DARK_BLUE }}
+                  >
+                    Milestones to Seed ({svc.milestones.length})
+                  </p>
+                  <div className="space-y-2">
+                    {svc.milestones.map((m, i) => (
+                      <div
+                        key={i}
+                        className="flex gap-3 rounded p-2.5"
+                        style={{ background: "#F8FAFC", border: "1px solid #E5E7EB" }}
+                      >
+                        <span
+                          className="flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold shrink-0 mt-0.5"
+                          style={{
+                            background: SERVICE_BADGE_COLORS[svc.key] ?? DARK_BLUE,
+                            color: "white",
+                          }}
+                        >
+                          {i + 1}
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-800">{m.title}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{m.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Onboarding */}
+                <div>
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wider mb-2"
+                    style={{ color: DARK_BLUE }}
+                  >
+                    5C Onboarding Checklist
+                  </p>
+                  <div className="space-y-1.5">
+                    {svc.onboarding.map((phase) => (
+                      <div key={phase.phase} className="flex gap-2">
+                        <div
+                          className="flex items-center gap-1 min-w-[90px]"
+                        >
+                          <span style={{ color: phaseColors[phase.phase] }}>
+                            {phaseIcons[phase.phase]}
+                          </span>
+                          <span
+                            className="text-xs font-semibold capitalize"
+                            style={{ color: phaseColors[phase.phase] }}
+                          >
+                            {phase.phase}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          {phase.items.map((item, j) => (
+                            <div key={j} className="flex gap-1.5 text-xs text-gray-600 mb-0.5">
+                              <span
+                                className="mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full"
+                                style={{ background: phaseColors[phase.phase] }}
+                              />
+                              {item}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Legal Docs */}
+                <div>
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wider mb-2"
+                    style={{ color: DARK_BLUE }}
+                  >
+                    Required Legal Documents
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {svc.legalDocs.map((doc, i) => (
+                      <div
+                        key={i}
+                        className="rounded p-2 text-xs"
+                        style={{
+                          background: doc.required ? `${DARK_BLUE}08` : "#F9FAFB",
+                          border: `1px solid ${doc.required ? `${DARK_BLUE}20` : "#E5E7EB"}`,
+                        }}
+                      >
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <Scale
+                            size={10}
+                            style={{ color: doc.required ? DARK_BLUE : GRAY_BLUE }}
+                          />
+                          <span
+                            className="font-semibold uppercase"
+                            style={{ color: doc.required ? DARK_BLUE : GRAY_BLUE }}
+                          >
+                            {doc.type}
+                          </span>
+                          {doc.required ? (
+                            <span
+                              className="px-1 rounded text-xs"
+                              style={{ background: "#DCFCE7", color: "#16A34A" }}
+                            >
+                              required
+                            </span>
+                          ) : (
+                            <span
+                              className="px-1 rounded text-xs"
+                              style={{ background: "#F3F4F6", color: "#6B7280" }}
+                            >
+                              optional
+                            </span>
+                          )}
+                        </div>
+                        {doc.note && (
+                          <p className="text-gray-500 mt-0.5">{doc.note}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <TipBox>
+        Keep the per-service setup reference bookmarked. Any time you activate a
+        new client, open the matching service card here and use it as your
+        setup checklist before touching any BECS OS records.
+      </TipBox>
+    </div>
+  );
+}
+
+// ─── Module C: Admin Process — Project Management ─────────────────────────────
+
+function ModuleProjectMgmtContent() {
+  const serviceRhythms = [
+    {
+      key: "reality_check",
+      name: "P.E.S. Reality Check",
+      cadence: "One-time session",
+      meetings: "1 session",
+      color: "#7C3AED",
+      rhythm:
+        "Single 90-min session. Pre-work: intake questionnaire. Post-work: deliver written report within 24 hours. Close immediately after report delivery.",
+    },
+    {
+      key: "foundation_builder",
+      name: "Foundation Builder",
+      cadence: "Weekly",
+      meetings: "4–6 sessions",
+      color: "#2563EB",
+      rhythm:
+        "Weekly 1:1 sessions. Session 1: baseline assessment. Sessions 2–4: SOP development and roadmap building. Final session: review and handoff. Recap after every session.",
+    },
+    {
+      key: "business_launch",
+      name: "P.E.S. Business Launch",
+      cadence: "Weekly",
+      meetings: "12+ sessions",
+      color: "#16A34A",
+      rhythm:
+        "Weekly 1:1s across 90 days. Monthly milestone reviews at Day 30, 60, and 90. Track progress through 6 prescribed phases. Installment 2 triggers at Day 45.",
+    },
+    {
+      key: "strategy_ops_session",
+      name: "Strategy & Ops Session",
+      cadence: "One-time session",
+      meetings: "1 session",
+      color: "#D97706",
+      rhythm:
+        "Single 90-min working session. Pre-session agenda confirmed 24 hours prior. Deliver written recap within 24 hours. Optional: 7-day follow-up email Q&A.",
+    },
+    {
+      key: "accelerator",
+      name: "B.E. Accelerator",
+      cadence: "Bi-weekly",
+      meetings: "6–7 sessions",
+      color: "#0D9488",
+      rhythm:
+        "Bi-weekly 1:1s across 90 days. Formal mid-point review at Day 45. KPI check-in at every session. Final debrief + continuation plan at close.",
+    },
+    {
+      key: "brand_identity",
+      name: "Brand Identity & Positioning",
+      cadence: "Project-based",
+      meetings: "2–3 sessions",
+      color: "#DB2777",
+      rhythm:
+        "Session 1: Discovery & Positioning Workshop. Session 2: Messaging & Voice review. Session 3 (optional): final approval walkthrough. Asynchronous feedback loops between sessions.",
+    },
+    {
+      key: "gtm_launch",
+      name: "Go-To-Market Launch",
+      cadence: "Weekly",
+      meetings: "4–6 sessions",
+      color: "#0891B2",
+      rhythm:
+        "Weekly working sessions across 4–6 weeks. Each session focuses on a specific GTM deliverable. Client approval gates at Strategy Document and Launch Calendar stages.",
+    },
+  ];
+
+  const weeklyChecklist = [
+    "Review all active project milestone statuses — update any completed items",
+    "Check for upcoming milestones due within the next 7 days and confirm ownership",
+    "Review all sessions scheduled for the week — confirm notes from last session are posted as recaps",
+    "Check onboarding checklist items — are any open Checkback items due?",
+    "Scan the Automation Log for any failed events or unusual activity",
+    "Review any outstanding proposals (sent/viewed status) — send follow-ups where needed",
+    "Check Legal & Docs for any unsigned or overdue documents",
+  ];
+
+  const addOnTriggers = [
+    {
+      trigger: "Client asks for something outside the current SOW scope",
+      action:
+        "Create an Add-On record on the client detail page. Define the scope, price, and timeline. Get a mini-SOW signed before starting.",
+    },
+    {
+      trigger: "Client completes a service and wants to continue",
+      action:
+        "Review their results and recommend the logical next service. Draft a new proposal. The client record stays active — create a new project.",
+    },
+    {
+      trigger: "Client needs an extra session not included in the SOW",
+      action:
+        "Price as a Strategy & Ops Session add-on ($995) or negotiate a custom add-on. Document with a brief scope note in the Add-On record.",
+    },
+    {
+      trigger: "Client asks about a service outside your current offering",
+      action:
+        "Escalate to the BECS principal immediately — do not quote or commit to custom scopes without approval.",
+    },
+  ];
+
+  const closingChecklist = [
+    "All project milestones marked complete",
+    "Final session recap posted to client portal",
+    "All deliverables uploaded or linked in the client portal",
+    "Final balance collected (if on payment plan)",
+    "Project status updated to 'completed'",
+    "Testimonial request sent to client via email or portal message",
+    "Upsell path identified and documented in the client record notes",
+    "Client portal access set appropriately (active for ongoing, review for completed)",
+    "Post-engagement follow-up scheduled in Meetings (30-day checkback)",
+  ];
+
+  return (
+    <div>
+      <SectionHeading>Running a Project Day-to-Day</SectionHeading>
+      <p className="text-sm text-gray-700 mb-4">
+        Active project management in BECS OS follows a consistent weekly
+        cadence regardless of service type. Staying current with milestones,
+        recaps, and onboarding items keeps the client experience smooth and
+        prevents things from falling through the cracks.
+      </p>
+
+      <InfoBox title="Weekly Admin Cadence">
+        <p className="mb-2">
+          Run through this checklist every Monday morning before client work
+          begins:
+        </p>
+        <div className="space-y-1.5">
+          {weeklyChecklist.map((item, i) => (
+            <div key={i} className="flex gap-2 items-start">
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold shrink-0 mt-0.5"
+                style={{ background: DARK_BLUE, color: "white" }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-sm text-gray-700">{item}</span>
+            </div>
+          ))}
+        </div>
+      </InfoBox>
+
+      <SectionHeading>Meeting Documentation & Recaps</SectionHeading>
+      <div className="space-y-2 mb-4">
+        <PESStep
+          number={1}
+          title="Before the Session"
+          icon={<CalendarDays size={16} />}
+          color="#6366F1"
+        >
+          <div className="space-y-1 mt-2">
+            <BulletList
+              items={[
+                "Review last session's recap and open action items",
+                "Confirm the project milestone status — which phase are we in?",
+                "Prepare the agenda based on the current milestone deliverable",
+                "Log a meeting record on the Meetings page with status = 'scheduled'",
+              ]}
+            />
+          </div>
+        </PESStep>
+        <PESStep
+          number={2}
+          title="During the Session"
+          icon={<PenLine size={16} />}
+          color="#D97706"
+        >
+          <div className="space-y-1 mt-2">
+            <BulletList
+              items={[
+                "Take live notes in the Meeting record's Notes field as the session progresses",
+                "Log action items in the Action Items field — who owns what, by when",
+                "Note any scope expansions or new asks for follow-up after the session",
+              ]}
+            />
+            <TipBox>
+              If the client asks for something outside the SOW, note it in the
+              meeting record but do not commit. Follow up after the session with
+              an Add-On proposal.
+            </TipBox>
+          </div>
+        </PESStep>
+        <PESStep
+          number={3}
+          title="After the Session"
+          icon={<ClipboardCheck size={16} />}
+          color="#22C55E"
+        >
+          <div className="space-y-1 mt-2">
+            <BulletList
+              items={[
+                "Update meeting status to 'completed'",
+                "Write and save the session Recap — a 3–5 paragraph summary of what was discussed, what was decided, and what comes next",
+                "Publish the recap to the client portal (Recaps page) so the client can reference it",
+                "Update the project milestone — mark any completed phases and advance to the next",
+                "Update the project's progressPercent to reflect the current completion level",
+              ]}
+            />
+          </div>
+        </PESStep>
+      </div>
+
+      <SectionHeading>Milestone Progression</SectionHeading>
+      <p className="text-sm text-gray-700 mb-3">
+        Milestones are the backbone of project tracking. Every milestone has a
+        defined status: <strong>pending → in_progress → complete</strong>. Only
+        one milestone should be "in_progress" at a time — all others are either
+        pending or done.
+      </p>
+      <BulletList
+        items={[
+          "Advance milestones after the session where the milestone's deliverable was completed and approved",
+          "Client approval is required before marking milestones that include client-facing deliverables as complete",
+          "Set clientActionRequired = true on milestones that need the client to review, sign, or provide input",
+          "Update the project's progressPercent after each milestone completion",
+          "If a milestone is blocked, add an adminNote explaining why and flag it in the weekly cadence review",
+        ]}
+      />
+
+      <SectionHeading>Handling Add-Ons</SectionHeading>
+      <div className="space-y-2 mb-4">
+        {addOnTriggers.map((item, i) => (
+          <div
+            key={i}
+            className="rounded-lg p-3 border"
+            style={{ borderColor: "#E5E7EB" }}
+          >
+            <div className="flex gap-2 mb-1">
+              <Zap size={13} style={{ color: "#D97706" }} className="shrink-0 mt-0.5" />
+              <p className="text-xs font-semibold text-gray-700">{item.trigger}</p>
+            </div>
+            <p className="text-xs text-gray-500 ml-5">{item.action}</p>
+          </div>
+        ))}
+      </div>
+
+      <SectionHeading>Per-Service Engagement Rhythm</SectionHeading>
+      <p className="text-sm text-gray-700 mb-3">
+        Each service has a prescribed cadence. Use these rhythm cards to set
+        client expectations at kickoff and stay on track throughout the
+        engagement.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        {serviceRhythms.map((s) => (
+          <div
+            key={s.key}
+            className="rounded-lg border p-3"
+            style={{
+              borderColor: `${s.color}25`,
+              background: `${s.color}05`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="font-semibold text-sm" style={{ color: s.color }}>
+                {s.name}
+              </p>
+            </div>
+            <div className="flex gap-2 mb-2">
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                style={{ background: `${s.color}15`, color: s.color }}
+              >
+                {s.cadence}
+              </span>
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                style={{ background: `${DARK_BLUE}10`, color: DARK_BLUE }}
+              >
+                {s.meetings}
+              </span>
+            </div>
+            <p className="text-xs text-gray-600">{s.rhythm}</p>
+          </div>
+        ))}
+      </div>
+
+      <SectionHeading>Project Closing Checklist</SectionHeading>
+      <p className="text-sm text-gray-700 mb-3">
+        Before marking any project complete, verify every item on this list.
+        Rushing the close creates loose ends that affect client satisfaction,
+        upsell potential, and business records.
+      </p>
+      <div
+        className="rounded-lg border p-4"
+        style={{ borderColor: `${DARK_BLUE}20`, background: `${DARK_BLUE}04` }}
+      >
+        <div className="space-y-2">
+          {closingChecklist.map((item, i) => (
+            <div key={i} className="flex items-start gap-2.5 text-sm">
+              <div
+                className="flex items-center justify-center w-4 h-4 rounded shrink-0 mt-0.5"
+                style={{ border: `1.5px solid ${DARK_BLUE}40` }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: GRAY_BLUE }}
+                />
+              </div>
+              <span className="text-gray-700">{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <TipBox>
+        Always ask for a testimonial within 48 hours of the final session —
+        while the experience is fresh. Use the portal message or a direct email.
+        Phrase it as: "Would you be willing to share a short reflection on your
+        experience working with BECS?" Reference testimonials in future proposals
+        for the same service type.
+      </TipBox>
+
+      <InfoBox title="Escalation Patterns">
+        <p className="mb-2">When to escalate immediately to the BECS principal:</p>
+        <BulletList
+          items={[
+            "Client expresses serious dissatisfaction or threatens to dispute a charge",
+            "A deliverable deadline will be missed due to BECS-side issues",
+            "Client requests a scope change that would meaningfully exceed the SOW",
+            "Any legal or compliance question arises (refunds, data privacy, contract disputes)",
+            "A client discloses sensitive information requiring confidential handling outside normal notes",
+          ]}
+        />
+      </InfoBox>
+    </div>
+  );
+}
+
+
 // ─── Client Guide Content ──────────────────────────────────────────────────
 
 function ClientGuideContent() {
@@ -1383,6 +2446,30 @@ export default function TrainingPage() {
       icon: <Shield size={16} />,
       estimatedMinutes: 8,
       content: <Module5Content />,
+    },
+    {
+      id: "admin-process-intake",
+      number: 6,
+      title: "Admin Process: Intake",
+      icon: <PhoneCall size={16} />,
+      estimatedMinutes: 12,
+      content: <ModuleIntakeContent />,
+    },
+    {
+      id: "admin-process-setup",
+      number: 7,
+      title: "Admin Process: Setup",
+      icon: <ListChecks size={16} />,
+      estimatedMinutes: 10,
+      content: <ModuleSetupContent />,
+    },
+    {
+      id: "admin-process-project-mgmt",
+      number: 8,
+      title: "Admin Process: Project Management",
+      icon: <Target size={16} />,
+      estimatedMinutes: 12,
+      content: <ModuleProjectMgmtContent />,
     },
   ];
 

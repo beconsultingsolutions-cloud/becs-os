@@ -10,6 +10,32 @@ export const ENTITY_LABELS: Record<EntityId, string> = {
   me_and_them: "ME & THEM",
 };
 
+// ─── SERVICE TYPES ──────────────────────────────────────────────────────────
+export const SERVICE_TYPES = [
+  "reality_check",
+  "foundation_builder",
+  "business_launch",
+  "strategy_ops_session",
+  "accelerator",
+  "brand_identity",
+  "gtm_launch",
+  "retainer",
+  "add_on",
+] as const;
+export type ServiceType = (typeof SERVICE_TYPES)[number];
+
+export const SERVICE_LABELS: Record<ServiceType, string> = {
+  reality_check: "P.E.S. Reality Check",
+  foundation_builder: "Foundation Builder",
+  business_launch: "P.E.S. Business Launch",
+  strategy_ops_session: "Strategy & Operations Session",
+  accelerator: "B.E. Accelerator Program",
+  brand_identity: "Brand Identity & Positioning",
+  gtm_launch: "Go-To-Market Launch Strategy",
+  retainer: "Retainer",
+  add_on: "Add-On",
+};
+
 // ─── ROLE ENUM ───────────────────────────────────────────────────────────────
 export const ROLES = ["super_admin", "admin", "entity_manager", "contractor", "client_user"] as const;
 export type UserRole = (typeof ROLES)[number];
