@@ -47,11 +47,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return becsUser;
     }
     try {
+      // Case-insensitive email match + tolerant is_active check.
+      // auth.users emails can differ in casing from public.users, and
+      // is_active has historically been stored as both boolean true and
+      // integer 1 across the SQLite → Supabase migration. Normalize in JS.
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("email", email)
-        .eq("is_active", true)
+        .ilike("email", email)
         .limit(1)
         .maybeSingle();
       if (error) {
@@ -60,13 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
       lastFetchedEmailRef.current = email;
-      if (data) {
+      if (data && (data.is_active === true || data.is_active === 1 || data.is_active === "true")) {
         const u = toCamel(data) as BecsUser;
         setBecsUser(u);
         setAuthError(null);
         return u;
       }
-      // Authenticated with Supabase but no row in public.users → not authorized
+      // Authenticated with Supabase but no active row in public.users → not authorized
       setBecsUser(null);
       setAuthError(null);
       return null;
