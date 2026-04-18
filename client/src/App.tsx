@@ -19,7 +19,13 @@ import AutomationPage from "@/pages/automation";
 import ReportsPage from "@/pages/reports";
 import TrainingPage from "@/pages/training";
 import NotFound from "@/pages/not-found";
-import { ENTITY_LABELS, type EntityId } from "@shared/schema";
+import IntakeLandingPage from "@/pages/portal/intake-landing";
+import IntakeFormPage from "@/pages/portal/intake-form";
+import IntakeBookPage from "@/pages/portal/intake-book";
+import ProposalReviewPage from "@/pages/portal/proposal-review";
+import PortalDashboardPage from "@/pages/portal/portal-dashboard";
+import PortalPlaceholderPage from "@/pages/portal/portal-placeholder";
+import { ENTITY_LABELS, type EntityId, type UserRole } from "@shared/schema";
 
 import {
   LayoutDashboard, Users, UserCheck, Briefcase, CalendarDays,
@@ -47,7 +53,18 @@ const resourceItems = [
   { href: "/training", label: "Training", icon: GraduationCap },
 ];
 
-const navItems = [...opsItems, ...resourceItems];
+const ADMIN_ROLES: UserRole[] = ["super_admin", "admin", "entity_manager", "contractor"];
+
+// Public routes that should NOT require authentication at all
+const PUBLIC_ROUTE_PREFIXES = ["/intake", "/p/"];
+
+function isPublicPath(path: string): boolean {
+  return PUBLIC_ROUTE_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p));
+}
+
+function isPortalPath(path: string): boolean {
+  return path === "/portal" || path.startsWith("/portal/");
+}
 
 // ─── Unauthorized Screen ────────────────────────────────────────────────────
 function UnauthorizedScreen({ email }: { email: string }) {
@@ -132,7 +149,6 @@ function EntitySwitcher() {
               onClick={() => {
                 setCurrentEntity(eid as EntityId);
                 setOpen(false);
-                // Invalidate all queries so they re-fetch with the new entity
                 queryClient.invalidateQueries();
               }}
               className={cn(
@@ -172,7 +188,6 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* Logo */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
             <svg viewBox="0 0 32 32" width="32" height="32" fill="none" aria-label="BECS OS">
@@ -189,12 +204,10 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           </button>
         </div>
 
-        {/* Entity Switcher */}
         <div className="pt-4">
           <EntitySwitcher />
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-2 overflow-y-auto">
           <div className="px-3 mb-2">
             <span className="text-white/30 text-xs uppercase tracking-widest font-semibold px-3">Operations</span>
@@ -247,7 +260,6 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           })}
         </nav>
 
-        {/* Bottom — User info + Sign out */}
         <div className="px-4 py-4 border-t border-white/10">
           {becsUser ? (
             <div className="flex items-center justify-between">
@@ -278,8 +290,8 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-// ─── Layout ──────────────────────────────────────────────────────────────────
-function Layout({ children }: { children: React.ReactNode }) {
+// ─── Admin Layout ────────────────────────────────────────────────────────────
+function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { becsUser } = useAuth();
   const { entityLabel } = useEntity();
@@ -320,55 +332,126 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Auth Guard ──────────────────────────────────────────────────────────────
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { session, becsUser, loading, authError } = useAuth();
+// ─── Loading ─────────────────────────────────────────────────────────────────
+function AppLoading({ authError }: { authError: string | null }) {
   const [slowBoot, setSlowBoot] = useState(false);
-
   useEffect(() => {
-    if (!loading) {
-      setSlowBoot(false);
-      return;
-    }
     const t = setTimeout(() => setSlowBoot(true), 6000);
     return () => clearTimeout(t);
-  }, [loading]);
+  }, []);
 
-  if (loading) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <Loader2 className="animate-spin text-primary" size={32} />
+      {slowBoot && (
+        <div className="text-center max-w-sm px-4">
+          <p className="text-sm text-white/60">Still loading…</p>
+          <p className="text-xs text-white/40 mt-1">
+            If this keeps hanging,{" "}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="underline hover:text-white/70"
+            >
+              reload the page
+            </button>
+            {authError ? ` (${authError})` : ""}.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Route Router (top-level routing with auth branching) ────────────────────
+function AppRoutes() {
+  const [location] = useLocation();
+  const { session, becsUser, loading, authError } = useAuth();
+
+  // Public routes: no auth required, just render
+  if (isPublicPath(location)) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-        <Loader2 className="animate-spin text-primary" size={32} />
-        {slowBoot && (
-          <div className="text-center max-w-sm px-4">
-            <p className="text-sm text-white/60">Still loading…</p>
-            <p className="text-xs text-white/40 mt-1">
-              If this keeps hanging,{" "}
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="underline hover:text-white/70"
-              >
-                reload the page
-              </button>
-              {authError ? ` (${authError})` : ""}.
-            </p>
-          </div>
-        )}
-      </div>
+      <Switch>
+        <Route path="/intake" component={IntakeLandingPage} />
+        <Route path="/intake/form" component={IntakeFormPage} />
+        <Route path="/intake/book/:leadId" component={IntakeBookPage} />
+        <Route path="/p/:token" component={ProposalReviewPage} />
+        <Route component={NotFound} />
+      </Switch>
     );
   }
 
-  // Not logged in at all — show login page
-  if (!session) {
-    return <LoginPage />;
+  if (loading) return <AppLoading authError={authError} />;
+
+  // Not logged in → show login for everything
+  if (!session) return <LoginPage />;
+
+  // Logged in via Supabase but no BECS user record → unauthorized
+  if (!becsUser) return <UnauthorizedScreen email={session.user.email || ""} />;
+
+  const role = becsUser.role;
+
+  // Portal routes: client_user role only
+  if (isPortalPath(location)) {
+    if (role !== "client_user") {
+      // Admin-type user hitting /portal → bounce to admin dashboard
+      window.location.hash = "#/";
+      return null;
+    }
+    return (
+      <Switch>
+        <Route path="/portal" component={PortalDashboardPage} />
+        <Route path="/portal/projects">
+          <PortalPlaceholderPage title="Projects" />
+        </Route>
+        <Route path="/portal/projects/:id">
+          <PortalPlaceholderPage title="Project detail" />
+        </Route>
+        <Route path="/portal/messages">
+          <PortalPlaceholderPage title="Messages" />
+        </Route>
+        <Route path="/portal/documents">
+          <PortalPlaceholderPage title="Documents" />
+        </Route>
+        <Route path="/portal/learn">
+          <PortalPlaceholderPage title="Your program" />
+        </Route>
+        <Route path="/portal/learn/:moduleId">
+          <PortalPlaceholderPage title="Module" />
+        </Route>
+        <Route component={NotFound} />
+      </Switch>
+    );
   }
 
-  // Logged in via Google but no BECS user record — unauthorized
-  if (!becsUser) {
-    return <UnauthorizedScreen email={session.user.email || ""} />;
+  // Admin routes
+  if (!ADMIN_ROLES.includes(role)) {
+    // Client user landed on admin route → bounce to portal
+    window.location.hash = "#/portal";
+    return null;
   }
 
-  return <>{children}</>;
+  return (
+    <EntityProvider>
+      <AdminLayout>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/leads" component={LeadsPage} />
+          <Route path="/clients" component={ClientsPage} />
+          <Route path="/clients/:id" component={ClientDetailPage} />
+          <Route path="/projects" component={ProjectsPage} />
+          <Route path="/meetings" component={MeetingsPage} />
+          <Route path="/proposals" component={ProposalsPage} />
+          <Route path="/legal" component={LegalPage} />
+          <Route path="/recaps" component={RecapsPage} />
+          <Route path="/automation" component={AutomationPage} />
+          <Route path="/reports" component={ReportsPage} />
+          <Route path="/training" component={TrainingPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </AdminLayout>
+    </EntityProvider>
+  );
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -377,27 +460,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router hook={useHashLocation}>
         <AuthProvider>
-          <AuthGuard>
-            <EntityProvider>
-              <Layout>
-                <Switch>
-                  <Route path="/" component={Dashboard} />
-                  <Route path="/leads" component={LeadsPage} />
-                  <Route path="/clients" component={ClientsPage} />
-                  <Route path="/clients/:id" component={ClientDetailPage} />
-                  <Route path="/projects" component={ProjectsPage} />
-                  <Route path="/meetings" component={MeetingsPage} />
-                  <Route path="/proposals" component={ProposalsPage} />
-                  <Route path="/legal" component={LegalPage} />
-                  <Route path="/recaps" component={RecapsPage} />
-                  <Route path="/automation" component={AutomationPage} />
-                  <Route path="/reports" component={ReportsPage} />
-                  <Route path="/training" component={TrainingPage} />
-                  <Route component={NotFound} />
-                </Switch>
-              </Layout>
-            </EntityProvider>
-          </AuthGuard>
+          <AppRoutes />
         </AuthProvider>
       </Router>
       <Toaster />
