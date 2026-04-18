@@ -117,10 +117,8 @@ export default function ClientDetailPage() {
   return (
     <div className="space-y-5 max-w-5xl">
       {/* Back */}
-      <Link href="/clients">
-        <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back-clients">
-          <ArrowLeft size={14} /> Back to Clients
-        </button>
+      <Link href="/clients" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer" data-testid="button-back-clients">
+        <ArrowLeft size={14} /> Back to Clients
       </Link>
 
       {/* Header */}

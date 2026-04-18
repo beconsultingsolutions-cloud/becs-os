@@ -190,11 +190,11 @@ export default function ClientsPage() {
                         )}
                       </div>
                       <div className="flex gap-2 mt-4">
-                        <Link href={`/clients/${client.id}`}>
-                          <Button variant="outline" size="sm" className="flex-1 h-8 text-xs">
+                        <Button asChild variant="outline" size="sm" className="flex-1 h-8 text-xs" data-testid={`button-view-client-${client.id}`}>
+                          <Link href={`/clients/${client.id}`}>
                             View <ArrowRight size={11} className="ml-1" />
-                          </Button>
-                        </Link>
+                          </Link>
+                        </Button>
                         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditing(client)}>Edit</Button>
                       </div>
                     </CardContent>
@@ -217,9 +217,9 @@ export default function ClientsPage() {
                       </div>
                       {client.businessName && <p className="text-xs text-muted-foreground">{client.businessName}</p>}
                       <div className="flex gap-2 mt-3">
-                        <Link href={`/clients/${client.id}`}>
-                          <Button variant="outline" size="sm" className="h-8 text-xs">View</Button>
-                        </Link>
+                        <Button asChild variant="outline" size="sm" className="h-8 text-xs" data-testid={`button-view-client-${client.id}`}>
+                          <Link href={`/clients/${client.id}`}>View</Link>
+                        </Button>
                         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditing(client)}>Edit</Button>
                       </div>
                     </CardContent>
