@@ -66,21 +66,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /** Wipe the local session and return the user to a clean login state. */
   const resetSession = useCallback(async () => {
-    if (recoveringRef.current) return;
-    recoveringRef.current = true;
-    try {
-      await clearSupabaseSession();
-    } finally {
-      setSession(null);
-      setSupabaseUser(null);
-      setBecsUser(null);
-      setAuthError(null);
-      lastFetchedEmailRef.current = null;
-      setLoading(false);
-      // Reload so any in-flight queries / cached React state starts clean.
-      if (typeof window !== "undefined") {
-        window.location.reload();
+    // Reentrancy guard only blocks the storage wipe, never the reload.
+    // User-initiated sign-out from the Unauthorized screen must always reload
+    // even if a background stale-token cycle flipped the flag earlier.
+    if (!recoveringRef.current) {
+      recoveringRef.current = true;
+      try {
+        await clearSupabaseSession();
+      } catch {
+        // If storage is already wiped, keep going to the reload.
       }
+    }
+    setSession(null);
+    setSupabaseUser(null);
+    setBecsUser(null);
+    setAuthError(null);
+    lastFetchedEmailRef.current = null;
+    setLoading(false);
+    if (typeof window !== "undefined") {
+      // Navigate back to root first so the post-reload app doesn't re-render
+      // the Unauthorized screen for the old hash route.
+      window.location.hash = "";
+      window.location.reload();
     }
   }, []);
 

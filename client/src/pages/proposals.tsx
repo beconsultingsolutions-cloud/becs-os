@@ -26,6 +26,28 @@ import { SERVICE_TEMPLATES } from "@/lib/service-templates";
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
+/**
+ * Deliverables may be stored as a JSON-encoded array (newer proposals) or as
+ * a plain comma-separated string (older or admin-created proposals). Parse
+ * defensively so malformed data never crashes the list.
+ */
+function parseDeliverables(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      // Fall through to comma-split
+    }
+  }
+  return trimmed
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 const SERVICE_OPTIONS = [
   "reality_check",
   "foundation_builder",
@@ -299,7 +321,7 @@ export default function ProposalsPage() {
           {proposals.map((p) => {
             const lead = getLead(p.leadId);
             const Icon = statusIcons[p.status] || FileText;
-            const deliverables = p.deliverables ? JSON.parse(p.deliverables) : [];
+            const deliverables = parseDeliverables(p.deliverables);
             const sig = sigMap[p.id];
             return (
               <Card key={p.id} data-testid={`proposal-card-${p.id}`}>

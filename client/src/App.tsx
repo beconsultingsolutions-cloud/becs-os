@@ -20,6 +20,7 @@ import ReportsPage from "@/pages/reports";
 import TrainingPage from "@/pages/training";
 import ProgramModulesPage from "@/pages/program-modules";
 import NotFound from "@/pages/not-found";
+import { ErrorBoundary } from "@/lib/error-boundary";
 import IntakeLandingPage from "@/pages/portal/intake-landing";
 import IntakeFormPage from "@/pages/portal/intake-form";
 import IntakeBookPage from "@/pages/portal/intake-book";
@@ -458,22 +459,24 @@ function AppRoutes() {
   return (
     <EntityProvider>
       <AdminLayout>
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/leads" component={LeadsPage} />
-          <Route path="/clients" component={ClientsPage} />
-          <Route path="/clients/:id" component={ClientDetailPage} />
-          <Route path="/projects" component={ProjectsPage} />
-          <Route path="/meetings" component={MeetingsPage} />
-          <Route path="/proposals" component={ProposalsPage} />
-          <Route path="/legal" component={LegalPage} />
-          <Route path="/recaps" component={RecapsPage} />
-          <Route path="/automation" component={AutomationPage} />
-          <Route path="/reports" component={ReportsPage} />
-          <Route path="/training" component={TrainingPage} />
-          <Route path="/program-modules" component={ProgramModulesPage} />
-          <Route component={NotFound} />
-        </Switch>
+        <ErrorBoundary key={location}>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/leads" component={LeadsPage} />
+            <Route path="/clients" component={ClientsPage} />
+            <Route path="/clients/:id" component={ClientDetailPage} />
+            <Route path="/projects" component={ProjectsPage} />
+            <Route path="/meetings" component={MeetingsPage} />
+            <Route path="/proposals" component={ProposalsPage} />
+            <Route path="/legal" component={LegalPage} />
+            <Route path="/recaps" component={RecapsPage} />
+            <Route path="/automation" component={AutomationPage} />
+            <Route path="/reports" component={ReportsPage} />
+            <Route path="/training" component={TrainingPage} />
+            <Route path="/program-modules" component={ProgramModulesPage} />
+            <Route component={NotFound} />
+          </Switch>
+        </ErrorBoundary>
       </AdminLayout>
     </EntityProvider>
   );
