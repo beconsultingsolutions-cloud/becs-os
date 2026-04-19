@@ -71,11 +71,11 @@ interface ProposalSignature {
   proposalId: number;
   signerName: string;
   signerEmail: string;
-  signatureData: string;
+  signatureDataUrl: string;
   signedAt: string;
-  ipAddress: string | null;
+  ip: string | null;
   userAgent: string | null;
-  termsAccepted: boolean;
+  acceptedTerms: boolean;
 }
 
 export default function ProposalsPage() {
@@ -486,21 +486,21 @@ export default function ProposalsPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Terms Accepted</p>
-                  <p className="font-medium">{viewingSig.termsAccepted ? "Yes" : "No"}</p>
+                  <p className="font-medium">{viewingSig.acceptedTerms ? "Yes" : "No"}</p>
                 </div>
-                {viewingSig.ipAddress && (
+                {viewingSig.ip && (
                   <div className="col-span-2">
                     <p className="text-xs text-muted-foreground">IP Address</p>
-                    <p className="font-medium font-mono text-xs">{viewingSig.ipAddress}</p>
+                    <p className="font-medium font-mono text-xs">{viewingSig.ip}</p>
                   </div>
                 )}
               </div>
-              {viewingSig.signatureData && (
+              {viewingSig.signatureDataUrl && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Signature</p>
                   <div className="border rounded-lg p-3 bg-white">
                     <img
-                      src={viewingSig.signatureData}
+                      src={viewingSig.signatureDataUrl}
                       alt="Signature"
                       className="max-w-full h-auto max-h-32 mx-auto"
                       data-testid="signature-image"
