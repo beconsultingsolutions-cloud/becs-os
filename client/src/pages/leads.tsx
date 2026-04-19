@@ -11,11 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import type { Lead } from "@shared/schema";
-import { Plus, Search, Filter, ChevronDown, Mail, Phone, Building2, Tag } from "lucide-react";
+import type { Lead, Meeting } from "@shared/schema";
+import { Plus, Search, Filter, Mail, Building2, ChevronDown, ChevronUp } from "lucide-react";
 
 const STATUSES = ["new","reviewing","discovery","assessment","proposal","nurture","not_fit"];
-const SERVICE_OPTIONS = ["reality_check","foundation_builder","business_launch","retainer","add_on"];
+const SERVICE_OPTIONS = ["reality_check","foundation_builder","business_launch","strategy_ops_session","accelerator","brand_identity","gtm_launch","compliance_coaching","retainer","add_on"];
 const STAGE_OPTIONS = ["startup","growing","established"];
 const BUDGET_OPTIONS = ["low","mid","high"];
 const SOURCE_OPTIONS = ["website","referral","linkedin","speaking","direct","qr_code","email","returning"];
@@ -53,12 +53,10 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
         const { error } = await supabase.from("leads").update({ ...toSnake(form), updated_at: new Date().toISOString() }).eq("id", initial.id);
         if (error) throw error;
       } else {
-        // Generate lead ID
         const { count } = await supabase.from("leads").select("id", { count: "exact", head: true });
         const leadId = `BECS-L-${String((count || 0) + 1).padStart(3, "0")}`;
         const { data, error } = await supabase.from("leads").insert({ ...toSnake(form), lead_id: leadId, entity_id: currentEntity }).select().single();
         if (error) throw error;
-        // Log automation event
         await supabase.from("automation_events").insert({
           type: "lead_created", entity_type: "lead", record_id: data.id,
           description: `Lead ${leadId} created`, status: "success",
@@ -176,12 +174,75 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
   );
 }
 
+function LeadDetailPanel({ lead, consultBooked }: { lead: Lead; consultBooked: boolean }) {
+  return (
+    <div className="mt-3 pt-3 border-t border-border space-y-3">
+      {consultBooked && (
+        <Badge className="text-xs bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+          Consult booked
+        </Badge>
+      )}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+        {lead.businessStage && (
+          <div>
+            <span className="text-muted-foreground">Stage: </span>
+            <span className="font-medium">{label(lead.businessStage)}</span>
+          </div>
+        )}
+        {lead.timeline && (
+          <div>
+            <span className="text-muted-foreground">Timeline: </span>
+            <span className="font-medium">{lead.timeline}</span>
+          </div>
+        )}
+        {lead.budgetComfort && (
+          <div>
+            <span className="text-muted-foreground">Budget: </span>
+            <span className="font-medium capitalize">{lead.budgetComfort}</span>
+          </div>
+        )}
+        {lead.referralSource && (
+          <div>
+            <span className="text-muted-foreground">Source: </span>
+            <span className="font-medium">{label(lead.referralSource)}</span>
+          </div>
+        )}
+      </div>
+      {lead.goals && (
+        <div className="text-xs">
+          <p className="text-muted-foreground font-medium mb-0.5">Goals</p>
+          <p className="text-foreground leading-relaxed">{lead.goals}</p>
+        </div>
+      )}
+      {lead.painPoints && (
+        <div className="text-xs">
+          <p className="text-muted-foreground font-medium mb-0.5">Pain Points</p>
+          <p className="text-foreground leading-relaxed">{lead.painPoints}</p>
+        </div>
+      )}
+      {lead.qualificationNotes && (
+        <div className="text-xs">
+          <p className="text-muted-foreground font-medium mb-0.5">Qualification Notes</p>
+          <p className="text-foreground leading-relaxed">{lead.qualificationNotes}</p>
+        </div>
+      )}
+      {lead.nextStep && (
+        <div className="text-xs">
+          <p className="text-muted-foreground font-medium mb-0.5">Next Step</p>
+          <p className="text-foreground">{lead.nextStep}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LeadsPage() {
   const { currentEntity } = useEntity();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
+  const [expandedLeadId, setExpandedLeadId] = useState<number | null>(null);
 
   const { data: leads = [], isLoading } = useQuery<Lead[]>({
     queryKey: ["leads", currentEntity],
@@ -190,6 +251,24 @@ export default function LeadsPage() {
       return toCamelArray<Lead>(data || []);
     },
   });
+
+  // Load consult meetings to show "Consult booked" badge
+  const leadIdList = leads.map((l) => l.id);
+  const { data: consultMeetings = [] } = useQuery<Meeting[]>({
+    queryKey: ["consult-meetings-for-leads", currentEntity],
+    queryFn: async () => {
+      if (leadIdList.length === 0) return [];
+      const { data } = await supabase
+        .from("meetings")
+        .select("id,lead_id")
+        .eq("type", "consult")
+        .in("lead_id", leadIdList);
+      return toCamelArray<Meeting>(data || []);
+    },
+    enabled: leadIdList.length > 0,
+  });
+
+  const consultBookedSet = new Set(consultMeetings.map((m) => m.leadId).filter(Boolean) as number[]);
 
   const filtered = leads.filter((l) => {
     const matchSearch = search === "" || [l.name, l.businessName, l.email].some((v) => v?.toLowerCase().includes(search.toLowerCase()));
@@ -258,35 +337,56 @@ export default function LeadsPage() {
                 {group.length > 0 && (
                   <CardContent className="p-0 pb-1">
                     <div className="divide-y divide-border">
-                      {group.map((lead) => (
-                        <div key={lead.id} className="flex items-center gap-4 px-5 py-3 hover:bg-muted/30 transition-colors" data-testid={`lead-item-${lead.id}`}>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
-                              {lead.serviceInterest && (
-                                <Badge variant="outline" className="text-xs shrink-0">{label(lead.serviceInterest)}</Badge>
-                              )}
+                      {group.map((lead) => {
+                        const isExpanded = expandedLeadId === lead.id;
+                        const hasConsult = consultBookedSet.has(lead.id);
+                        return (
+                          <div key={lead.id} className="px-5 py-3 hover:bg-muted/30 transition-colors" data-testid={`lead-item-${lead.id}`}>
+                            <div className="flex items-center gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
+                                  {lead.serviceInterest && (
+                                    <Badge variant="outline" className="text-xs shrink-0">{label(lead.serviceInterest)}</Badge>
+                                  )}
+                                  {hasConsult && (
+                                    <Badge className="text-xs shrink-0 bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+                                      Consult booked
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  {lead.businessName && <span className="text-xs text-muted-foreground flex items-center gap-1"><Building2 size={10} />{lead.businessName}</span>}
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={10} />{lead.email}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {lead.budgetComfort && <span className="text-xs text-muted-foreground capitalize">{lead.budgetComfort} budget</span>}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}
+                                  data-testid={`button-expand-lead-${lead.id}`}
+                                  title={isExpanded ? "Collapse" : "Expand details"}
+                                >
+                                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => { setEditing(lead); setOpen(true); }}
+                                  data-testid={`button-edit-lead-${lead.id}`}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 mt-0.5">
-                              {lead.businessName && <span className="text-xs text-muted-foreground flex items-center gap-1"><Building2 size={10} />{lead.businessName}</span>}
-                              <span className="text-xs text-muted-foreground flex items-center gap-1"><Mail size={10} />{lead.email}</span>
-                            </div>
+                            {isExpanded && <LeadDetailPanel lead={lead} consultBooked={hasConsult} />}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {lead.budgetComfort && <span className="text-xs text-muted-foreground capitalize">{lead.budgetComfort} budget</span>}
-                            {lead.referralSource && <span className="text-xs text-muted-foreground capitalize hidden sm:block">{label(lead.referralSource)}</span>}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => { setEditing(lead); setOpen(true); }}
-                              data-testid={`button-edit-lead-${lead.id}`}
-                            >
-                              Edit
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 )}

@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { Proposal, Lead, Client } from "@shared/schema";
-import { FileText, Plus, DollarSign, Clock, CheckCircle2, Send, Eye, Download } from "lucide-react";
+import { FileText, Plus, DollarSign, Clock, CheckCircle2, Send, Eye, Download, Link2, PenLine } from "lucide-react";
 import {
   downloadProposalPDF,
   DEFAULT_MISSION,
@@ -26,12 +26,35 @@ import { SERVICE_TEMPLATES } from "@/lib/service-templates";
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
-const SERVICE_OPTIONS = ["reality_check","foundation_builder","business_launch","retainer","add_on"];
+const SERVICE_OPTIONS = [
+  "reality_check",
+  "foundation_builder",
+  "business_launch",
+  "strategy_ops_session",
+  "accelerator",
+  "brand_identity",
+  "gtm_launch",
+  "compliance_coaching",
+  "retainer",
+  "add_on",
+];
 const STATUS_OPTIONS = ["draft","sent","viewed","accepted","declined","expired"];
 
 const statusIcons: Record<string, any> = {
   draft: FileText, sent: Send, viewed: Eye, accepted: CheckCircle2, declined: FileText, expired: Clock,
 };
+
+interface ProposalSignature {
+  id: number;
+  proposalId: number;
+  signerName: string;
+  signerEmail: string;
+  signatureData: string;
+  signedAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  termsAccepted: boolean;
+}
 
 export default function ProposalsPage() {
   const { currentEntity } = useEntity();
@@ -39,13 +62,42 @@ export default function ProposalsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  // Signature dialog state
+  const [sigDialogOpen, setSigDialogOpen] = useState(false);
+  const [viewingSig, setViewingSig] = useState<ProposalSignature | null>(null);
+
   const { data: proposals = [], isLoading } = useQuery<Proposal[]>({
     queryKey: ["proposals", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("proposals").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("proposals")
+        .select("*")
+        .eq("entity_id", currentEntity)
+        .order("created_at", { ascending: false });
       return toCamelArray<Proposal>(data || []);
     },
   });
+
+  // Load signatures for all accepted proposals
+  const acceptedProposalIds = proposals.filter((p) => p.status === "accepted").map((p) => p.id);
+  const { data: signatures = [] } = useQuery<ProposalSignature[]>({
+    queryKey: ["proposal-signatures", acceptedProposalIds],
+    queryFn: async () => {
+      if (acceptedProposalIds.length === 0) return [];
+      const { data } = await supabase
+        .from("proposal_signatures")
+        .select("*")
+        .in("proposal_id", acceptedProposalIds);
+      return toCamelArray<ProposalSignature>(data || []);
+    },
+    enabled: acceptedProposalIds.length > 0,
+  });
+
+  const sigMap: Record<number, ProposalSignature> = {};
+  for (const s of signatures) {
+    sigMap[s.proposalId] = s;
+  }
+
   const { data: leads = [] } = useQuery<Lead[]>({
     queryKey: ["leads", currentEntity],
     queryFn: async () => {
@@ -92,7 +144,6 @@ export default function ProposalsPage() {
 
   const openPdfDialog = (p: Proposal) => {
     const lead = leads.find((l) => l.id === p.leadId);
-    // Hybrid autofill: client name + service from proposal; narrative editable
     const clientName =
       lead?.name ||
       clients.find((c) => c.name)?.name ||
@@ -117,7 +168,6 @@ export default function ProposalsPage() {
   };
 
   const handleGeneratePdf = () => {
-    // Build tiers: if user selected services, pull from templates; else defaults
     const tiers: ProposalTier[] =
       pdfForm.selectedServices.length > 0
         ? pdfForm.selectedServices
@@ -216,6 +266,12 @@ export default function ProposalsPage() {
     },
   });
 
+  const copyShareLink = async (shareToken: string) => {
+    const url = `${window.location.origin}/#/p/${shareToken}`;
+    await navigator.clipboard.writeText(url);
+    toast({ title: "Share link copied" });
+  };
+
   const getLead = (id: number | null) => id ? leads.find((l) => l.id === id) : null;
 
   return (
@@ -244,6 +300,7 @@ export default function ProposalsPage() {
             const lead = getLead(p.leadId);
             const Icon = statusIcons[p.status] || FileText;
             const deliverables = p.deliverables ? JSON.parse(p.deliverables) : [];
+            const sig = sigMap[p.id];
             return (
               <Card key={p.id} data-testid={`proposal-card-${p.id}`}>
                 <CardContent className="p-5">
@@ -255,6 +312,11 @@ export default function ProposalsPage() {
                       </div>
                       <p className="text-xs text-muted-foreground">{p.proposalId} {lead ? `· ${lead.name}` : ""}</p>
                       {p.scope && <p className="text-xs text-muted-foreground mt-1">{p.scope}</p>}
+                      {p.status === "accepted" && sig && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                          Signed by {sig.signerName} on {new Date(sig.signedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {p.price && (
@@ -277,7 +339,30 @@ export default function ProposalsPage() {
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     {p.timeline && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock size={11} /> {p.timeline}</span>}
                     {p.ndaRequired ? <Badge variant="outline" className="text-xs border-red-200 text-red-600">NDA Required</Badge> : null}
-                    <div className="ml-auto flex gap-1">
+                    <div className="ml-auto flex gap-1 flex-wrap">
+                      {p.shareToken && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => copyShareLink(p.shareToken!)}
+                          data-testid={`button-copy-link-${p.id}`}
+                          title="Copy share link"
+                        >
+                          <Link2 size={11} className="mr-1" /> Copy link
+                        </Button>
+                      )}
+                      {p.status === "accepted" && sig && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs border-green-300 text-green-700"
+                          onClick={() => { setViewingSig(sig); setSigDialogOpen(true); }}
+                          data-testid={`button-view-sig-${p.id}`}
+                        >
+                          <PenLine size={11} className="mr-1" /> View signature
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -306,6 +391,7 @@ export default function ProposalsPage() {
         </div>
       )}
 
+      {/* Create Proposal Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>New Proposal</DialogTitle></DialogHeader>
@@ -354,6 +440,54 @@ export default function ProposalsPage() {
               {create.isPending ? "Saving…" : "Create Proposal"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Signature Dialog */}
+      <Dialog open={sigDialogOpen} onOpenChange={setSigDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Signature Details</DialogTitle></DialogHeader>
+          {viewingSig && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Signer Name</p>
+                  <p className="font-medium">{viewingSig.signerName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Signer Email</p>
+                  <p className="font-medium">{viewingSig.signerEmail}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Signed At</p>
+                  <p className="font-medium">{new Date(viewingSig.signedAt).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Terms Accepted</p>
+                  <p className="font-medium">{viewingSig.termsAccepted ? "Yes" : "No"}</p>
+                </div>
+                {viewingSig.ipAddress && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">IP Address</p>
+                    <p className="font-medium font-mono text-xs">{viewingSig.ipAddress}</p>
+                  </div>
+                )}
+              </div>
+              {viewingSig.signatureData && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Signature</p>
+                  <div className="border rounded-lg p-3 bg-white">
+                    <img
+                      src={viewingSig.signatureData}
+                      alt="Signature"
+                      className="max-w-full h-auto max-h-32 mx-auto"
+                      data-testid="signature-image"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

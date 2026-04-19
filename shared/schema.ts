@@ -241,6 +241,7 @@ export interface Proposal {
   status: string;
   sentAt: string | null;
   acceptedAt: string | null;
+  shareToken: string | null;
   notes: string | null;
   createdAt: string;
 }

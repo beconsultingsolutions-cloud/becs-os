@@ -11,12 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { Meeting, Client } from "@shared/schema";
-import { CalendarDays, Plus, Clock, Video, FileText } from "lucide-react";
+import type { Meeting, Client, Lead } from "@shared/schema";
+import { CalendarDays, Plus } from "lucide-react";
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
-const TYPES = ["discovery","kickoff","strategy","check_in","milestone_review","final","follow_up"];
+const TYPES = ["consult","discovery","kickoff","strategy","check_in","milestone_review","final","follow_up"];
 const STATUSES = ["scheduled","completed","cancelled","rescheduled"];
 
 export default function MeetingsPage() {
@@ -28,10 +28,15 @@ export default function MeetingsPage() {
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({
     queryKey: ["meetings", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("meetings").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("meetings")
+        .select("*")
+        .eq("entity_id", currentEntity)
+        .order("scheduled_at", { ascending: false });
       return toCamelArray<Meeting>(data || []);
     },
   });
+
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ["clients", currentEntity],
     queryFn: async () => {
@@ -39,6 +44,26 @@ export default function MeetingsPage() {
       return toCamelArray<Client>(data || []);
     },
   });
+
+  // Fetch leads for lead-linked meetings (consult type with lead_id)
+  const leadIds = meetings
+    .filter((m) => m.leadId != null)
+    .map((m) => m.leadId as number);
+
+  const { data: linkedLeads = [] } = useQuery<Lead[]>({
+    queryKey: ["leads-for-meetings", leadIds],
+    queryFn: async () => {
+      if (leadIds.length === 0) return [];
+      const { data } = await supabase.from("leads").select("*").in("id", leadIds);
+      return toCamelArray<Lead>(data || []);
+    },
+    enabled: leadIds.length > 0,
+  });
+
+  const leadMap: Record<number, Lead> = {};
+  for (const l of linkedLeads) {
+    leadMap[l.id] = l;
+  }
 
   const [form, setForm] = useState({ clientId: "", type: "discovery", title: "", scheduledAt: "", duration: "60", notes: "" });
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -68,6 +93,8 @@ export default function MeetingsPage() {
 
   const getClient = (id: number | null) => id ? clients.find((c) => c.id === id) : null;
 
+  const isIntakeConsult = (m: Meeting) => m.type === "consult" && m.leadId != null;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -87,6 +114,7 @@ export default function MeetingsPage() {
           <div className="grid gap-3">
             {upcoming.map((m) => {
               const client = getClient(m.clientId);
+              const lead = m.leadId ? leadMap[m.leadId] : null;
               return (
                 <Card key={m.id} className="border-primary/15" data-testid={`meeting-card-${m.id}`}>
                   <CardContent className="p-5 flex items-start gap-4">
@@ -97,12 +125,22 @@ export default function MeetingsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-sm">{m.title}</p>
                         <Badge variant="outline" className="text-xs">{label(m.type)}</Badge>
+                        {isIntakeConsult(m) && (
+                          <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                            Intake consult
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Time TBD"}
                         {m.duration ? ` · ${m.duration} min` : ""}
                       </p>
                       {client && <p className="text-xs text-muted-foreground mt-0.5">Client: {client.name}</p>}
+                      {lead && !client && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Lead: {lead.name} · {lead.email}
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -121,14 +159,23 @@ export default function MeetingsPage() {
               <div className="divide-y divide-border">
                 {past.map((m) => {
                   const client = getClient(m.clientId);
+                  const lead = m.leadId ? leadMap[m.leadId] : null;
                   return (
                     <div key={m.id} className="px-5 py-3" data-testid={`meeting-past-${m.id}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium">{m.title}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium">{m.title}</p>
+                            {isIntakeConsult(m) && (
+                              <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                                Intake consult
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString() : "—"} · {label(m.type)}
                             {client ? ` · ${client.name}` : ""}
+                            {lead && !client ? ` · ${lead.name} (${lead.email})` : ""}
                           </p>
                         </div>
                         <span className={`status-${m.status} text-xs font-medium px-2 py-0.5 rounded-full`}>{label(m.status)}</span>
@@ -166,7 +213,7 @@ export default function MeetingsPage() {
               <div className="space-y-1">
                 <Label className="text-xs">Type</Label>
                 <Select value={form.type} onValueChange={(v) => update("type", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger data-testid="select-meeting-type"><SelectValue /></SelectTrigger>
                   <SelectContent>{TYPES.map((t) => <SelectItem key={t} value={t}>{label(t)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>

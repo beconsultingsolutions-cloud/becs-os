@@ -18,6 +18,7 @@ import RecapsPage from "@/pages/recaps";
 import AutomationPage from "@/pages/automation";
 import ReportsPage from "@/pages/reports";
 import TrainingPage from "@/pages/training";
+import ProgramModulesPage from "@/pages/program-modules";
 import NotFound from "@/pages/not-found";
 import IntakeLandingPage from "@/pages/portal/intake-landing";
 import IntakeFormPage from "@/pages/portal/intake-form";
@@ -55,6 +56,7 @@ const opsItems = [
 const resourceItems = [
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/training", label: "Training", icon: GraduationCap },
+  { href: "/program-modules", label: "Program modules", icon: GraduationCap },
 ];
 
 const ADMIN_ROLES: UserRole[] = ["super_admin", "admin", "entity_manager", "contractor"];
@@ -469,6 +471,7 @@ function AppRoutes() {
           <Route path="/automation" component={AutomationPage} />
           <Route path="/reports" component={ReportsPage} />
           <Route path="/training" component={TrainingPage} />
+          <Route path="/program-modules" component={ProgramModulesPage} />
           <Route component={NotFound} />
         </Switch>
       </AdminLayout>

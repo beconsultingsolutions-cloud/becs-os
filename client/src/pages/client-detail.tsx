@@ -1,14 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase, toCamelArray, toCamel } from "@/lib/supabase";
+import { supabase, toCamelArray, toCamel, toSnake } from "@/lib/supabase";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth-context";
 import type { Client, Project, Milestone, Meeting, LegalDoc, Recap, OnboardingItem, AddOn } from "@shared/schema";
-import { ArrowLeft, CheckCircle2, Clock, Lock, CircleDot, CalendarDays, FileText, BookOpen, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Lock, CircleDot, CalendarDays, FileText, BookOpen, Sparkles, Send, Trash2, ExternalLink } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -19,11 +24,47 @@ function MilestoneStatusIcon({ status }: { status: string }) {
   return <Clock size={16} className="text-amber-500" />;
 }
 
+interface ClientMessage {
+  id: number;
+  clientId: number;
+  entityId: string;
+  senderUserId: string | null;
+  senderRole: "admin" | "client";
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+interface ClientDocument {
+  id: number;
+  clientId: number;
+  projectId: number | null;
+  entityId: string;
+  title: string;
+  fileUrl: string;
+  kind: string;
+  uploadedBy: string | null;
+  visibleToClient: boolean;
+  createdAt: string;
+}
+
+const DOC_KINDS = ["contract","proposal","deliverable","onboarding","report","invoice","other"];
+
 export default function ClientDetailPage() {
   const [, params] = useRoute("/clients/:id");
   const clientId = Number(params?.id);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { becsUser } = useAuth();
+
+  // ── Message composer state ────────────────────────────────────────────
+  const [msgDraft, setMsgDraft] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const msgEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Document form state ───────────────────────────────────────────────
+  const [docForm, setDocForm] = useState({ title: "", fileUrl: "", kind: "contract", visibleToClient: true });
+  const updateDoc = (k: string, v: any) => setDocForm((f) => ({ ...f, [k]: v }));
 
   const { data: client } = useQuery<Client>({
     queryKey: ["clients", clientId],
@@ -75,6 +116,41 @@ export default function ClientDetailPage() {
     },
   });
 
+  // Messages query
+  const { data: messages = [] } = useQuery<ClientMessage[]>({
+    queryKey: ["admin-messages-client", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_messages")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return toCamelArray<ClientMessage>(data || []);
+    },
+    enabled: !!clientId,
+  });
+
+  // Documents query
+  const { data: clientDocs = [] } = useQuery<ClientDocument[]>({
+    queryKey: ["admin-docs-client", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("client_documents")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return toCamelArray<ClientDocument>(data || []);
+    },
+    enabled: !!clientId,
+  });
+
+  // Scroll messages to bottom when messages change
+  useEffect(() => {
+    msgEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   // Active project (first active)
   const activeProject = projects.find((p) => p.status === "active") || projects[0];
 
@@ -107,6 +183,61 @@ export default function ClientDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["onboarding", clientId] });
     },
+  });
+
+  const sendMessage = async () => {
+    if (!msgDraft.trim() || !becsUser) return;
+    setMsgSending(true);
+    try {
+      const { error } = await supabase.from("client_messages").insert({
+        client_id: clientId,
+        entity_id: client?.entityId ?? "becs",
+        sender_user_id: String(becsUser.id),
+        sender_role: "admin",
+        body: msgDraft.trim(),
+      });
+      if (error) throw error;
+      setMsgDraft("");
+      qc.invalidateQueries({ queryKey: ["admin-messages-client", clientId] });
+    } catch {
+      toast({ title: "Failed to send message", variant: "destructive" });
+    } finally {
+      setMsgSending(false);
+    }
+  };
+
+  const addDocument = useMutation({
+    mutationFn: async () => {
+      if (!docForm.title || !docForm.fileUrl) throw new Error("Title and URL required");
+      const { error } = await supabase.from("client_documents").insert({
+        client_id: clientId,
+        entity_id: client?.entityId ?? "becs",
+        title: docForm.title,
+        file_url: docForm.fileUrl,
+        kind: docForm.kind,
+        visible_to_client: docForm.visibleToClient,
+        uploaded_by: becsUser ? String(becsUser.id) : null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-docs-client", clientId] });
+      toast({ title: "Document added" });
+      setDocForm({ title: "", fileUrl: "", kind: "contract", visibleToClient: true });
+    },
+    onError: () => toast({ title: "Failed to add document", variant: "destructive" }),
+  });
+
+  const deleteDocument = useMutation({
+    mutationFn: async (docId: number) => {
+      const { error } = await supabase.from("client_documents").delete().eq("id", docId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-docs-client", clientId] });
+      toast({ title: "Document removed" });
+    },
+    onError: () => toast({ title: "Failed to delete document", variant: "destructive" }),
   });
 
   if (!client) return <div className="p-6 text-muted-foreground">Loading client…</div>;
@@ -174,6 +305,8 @@ export default function ClientDetailPage() {
           <TabsTrigger value="legal" className="text-xs">Legal & Docs</TabsTrigger>
           <TabsTrigger value="recaps" className="text-xs">Recaps</TabsTrigger>
           <TabsTrigger value="addons" className="text-xs">Add-ons</TabsTrigger>
+          <TabsTrigger value="messages" className="text-xs">Messages</TabsTrigger>
+          <TabsTrigger value="documents" className="text-xs">Documents</TabsTrigger>
         </TabsList>
 
         {/* Milestones */}
@@ -347,6 +480,178 @@ export default function ClientDetailPage() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </TabsContent>
+
+        {/* Messages */}
+        <TabsContent value="messages" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Client Messages</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="min-h-[200px] max-h-[50vh] overflow-y-auto p-5 space-y-3">
+                {messages.length === 0 ? (
+                  <p className="text-center text-muted-foreground text-sm py-8">No messages yet. Send one below.</p>
+                ) : messages.map((m) => {
+                  const isAdmin = m.senderRole === "admin";
+                  const time = new Date(m.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+                  return (
+                    <div key={m.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`} data-testid={`msg-row-${m.id}`}>
+                      <div className={`max-w-[80%] ${isAdmin ? "text-right" : ""}`}>
+                        <div className={`inline-block px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                          isAdmin
+                            ? "bg-primary text-primary-foreground rounded-br-sm"
+                            : "bg-muted text-foreground rounded-bl-sm"
+                        }`}>
+                          {m.body}
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground px-1">
+                          {isAdmin ? "Admin" : "Client"} · {time}
+                          {!isAdmin && !m.readAt && <span className="ml-1 text-amber-500">· Unread</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={msgEndRef} />
+              </div>
+
+              {/* Admin composer */}
+              <div className="border-t border-border p-4 bg-muted/30">
+                <div className="flex gap-2">
+                  <Textarea
+                    value={msgDraft}
+                    onChange={(e) => setMsgDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    rows={2}
+                    placeholder="Write a message to the client… (Cmd/Ctrl+Enter to send)"
+                    className="flex-1 resize-none text-sm"
+                    data-testid="input-admin-message"
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    disabled={msgSending || !msgDraft.trim()}
+                    size="sm"
+                    className="self-end"
+                    data-testid="button-send-message"
+                  >
+                    <Send size={14} className="mr-1" /> Send
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Documents */}
+        <TabsContent value="documents" className="mt-4">
+          <div className="space-y-4">
+            {/* Add document form */}
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Add Document</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Title *</Label>
+                    <Input
+                      value={docForm.title}
+                      onChange={(e) => updateDoc("title", e.target.value)}
+                      placeholder="e.g. Signed Contract Q1"
+                      data-testid="input-doc-title"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Kind</Label>
+                    <Select value={docForm.kind} onValueChange={(v) => updateDoc("kind", v)}>
+                      <SelectTrigger data-testid="select-doc-kind"><SelectValue /></SelectTrigger>
+                      <SelectContent>{DOC_KINDS.map((k) => <SelectItem key={k} value={k}>{label(k)}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">File URL * (Google Drive, Dropbox, etc.)</Label>
+                    <Input
+                      value={docForm.fileUrl}
+                      onChange={(e) => updateDoc("fileUrl", e.target.value)}
+                      placeholder="https://drive.google.com/file/d/…"
+                      data-testid="input-doc-url"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 col-span-2">
+                    <input
+                      type="checkbox"
+                      id="visibleToClient"
+                      checked={docForm.visibleToClient}
+                      onChange={(e) => updateDoc("visibleToClient", e.target.checked)}
+                      className="h-4 w-4 rounded border border-input"
+                      data-testid="checkbox-doc-visible"
+                    />
+                    <Label htmlFor="visibleToClient" className="text-xs cursor-pointer">Visible to client in portal</Label>
+                  </div>
+                </div>
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  onClick={() => addDocument.mutate()}
+                  disabled={addDocument.isPending || !docForm.title || !docForm.fileUrl}
+                  data-testid="button-add-document"
+                >
+                  {addDocument.isPending ? "Adding…" : "Add Document"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Documents list */}
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Documents ({clientDocs.length})</CardTitle></CardHeader>
+              <CardContent className="p-0 pb-2">
+                {clientDocs.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-muted-foreground text-sm">No documents added yet.</p>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {clientDocs.map((doc) => (
+                      <div key={doc.id} className="flex items-center gap-3 px-5 py-3" data-testid={`client-doc-row-${doc.id}`}>
+                        <FileText size={14} className="text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {label(doc.kind)} · {new Date(doc.createdAt).toLocaleDateString()}
+                            {doc.visibleToClient ? " · Visible to client" : " · Admin only"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            data-testid={`button-open-doc-${doc.id}`}
+                            title="Open document"
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600"
+                            onClick={() => deleteDocument.mutate(doc.id)}
+                            data-testid={`button-delete-doc-${doc.id}`}
+                            title="Delete document"
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
