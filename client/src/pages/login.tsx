@@ -53,7 +53,8 @@ export default function LoginPage() {
             </svg>
             <div className="text-center">
               <h1 className="text-xl font-bold text-white tracking-wide">BECS OS</h1>
-              <p className="text-white/50 text-sm mt-0.5">Plan. Evolve. Succeed.</p>
+              <p className="text-white/70 text-sm mt-0.5">Client &amp; Team Portal</p>
+              <p className="text-white/40 text-xs mt-1">Plan. Evolve. Succeed.</p>
             </div>
           </div>
 
@@ -113,9 +114,21 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-white/30 text-xs text-center">
-            Access restricted to authorized team members
-          </p>
+          <div className="space-y-3 text-center">
+            <p className="text-white/50 text-xs">
+              Not a client yet?{" "}
+              <a
+                href="https://thebeconsultingsolution.com"
+                className="text-[hsl(83,60%,57%)] hover:underline font-medium"
+                data-testid="link-marketing-site"
+              >
+                Visit thebeconsultingsolution.com
+              </a>
+            </p>
+            <p className="text-white/25 text-[10px] uppercase tracking-widest">
+              Sign-in is for current B.E.C.S. clients and team members
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
