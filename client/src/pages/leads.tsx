@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import type { Lead, Meeting } from "@shared/schema";
-import { Plus, Search, Filter, Mail, Building2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, Filter, Mail, Building2, ChevronDown, ChevronUp, Target, Sparkles } from "lucide-react";
 
 const STATUSES = ["new","reviewing","discovery","assessment","proposal","nurture","not_fit"];
 const SERVICE_OPTIONS = ["reality_check","foundation_builder","business_launch","strategy_ops_session","accelerator","brand_identity","gtm_launch","compliance_coaching","retainer","add_on"];
@@ -20,6 +21,35 @@ const STAGE_OPTIONS = ["startup","growing","established"];
 const BUDGET_OPTIONS = ["low","mid","high"];
 const SOURCE_OPTIONS = ["website","referral","linkedin","speaking","direct","qr_code","email","returning"];
 const PATH_OPTIONS = ["path_a","path_b","path_c","path_d"];
+const MODE_OPTIONS = ["plan","evolve","succeed"];
+const MODE_BLURB: Record<string, string> = {
+  plan: "Foundation & clarity. $3K-$15K. Brand, messaging, pricing.",
+  evolve: "Optimize & scale systems. $10K-$18K. Website, marketing, ops.",
+  succeed: "Authority & passive income. $12K-$25K+. Products, public figure, advanced ops.",
+};
+const MODE_BADGE: Record<string, string> = {
+  plan:    "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
+  evolve:  "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
+  succeed: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800",
+};
+
+// Auto-suggest mode from business_stage + budget hints
+function suggestMode(stage: string, budget: string): string {
+  if (stage === "established") return "succeed";
+  if (stage === "growing")     return "evolve";
+  if (stage === "startup")     return "plan";
+  if (budget === "high")       return "succeed";
+  if (budget === "mid")        return "evolve";
+  if (budget === "low")        return "plan";
+  return "";
+}
+
+function scoreBadgeColor(score: number): string {
+  if (score >= 75) return "bg-green-600 text-white border-green-700";
+  if (score >= 50) return "bg-amber-500 text-white border-amber-600";
+  if (score >= 25) return "bg-slate-400 text-white border-slate-500";
+  return "bg-slate-200 text-slate-600 border-slate-300";
+}
 
 function label(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -43,19 +73,27 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
     qualificationNotes: initial?.qualificationNotes ?? "",
     recommendedPath: initial?.recommendedPath ?? "",
     nextStep: initial?.nextStep ?? "",
+    mode: initial?.mode ?? "",
+    scoreBudget:    initial?.scoreBudget    ?? 0,
+    scoreAuthority: initial?.scoreAuthority ?? 0,
+    scoreNeed:      initial?.scoreNeed      ?? 0,
+    scoreTimeline:  initial?.scoreTimeline  ?? 0,
+    scoreFit:       initial?.scoreFit       ?? 0,
   });
 
-  const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const update = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const totalScore = form.scoreBudget + form.scoreAuthority + form.scoreNeed + form.scoreTimeline + form.scoreFit;
+  const suggested = suggestMode(form.businessStage, form.budgetComfort);
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload: any = form) => {
       if (initial?.id) {
-        const { error } = await supabase.from("leads").update({ ...toSnake(form), updated_at: new Date().toISOString() }).eq("id", initial.id);
+        const { error } = await supabase.from("leads").update({ ...toSnake(payload), updated_at: new Date().toISOString() }).eq("id", initial.id);
         if (error) throw error;
       } else {
         const { count } = await supabase.from("leads").select("id", { count: "exact", head: true });
         const leadId = `BECS-L-${String((count || 0) + 1).padStart(3, "0")}`;
-        const { data, error } = await supabase.from("leads").insert({ ...toSnake(form), lead_id: leadId, entity_id: currentEntity }).select().single();
+        const { data, error } = await supabase.from("leads").insert({ ...toSnake(payload), lead_id: leadId, entity_id: currentEntity }).select().single();
         if (error) throw error;
         await supabase.from("automation_events").insert({
           type: "lead_created", entity_type: "lead", record_id: data.id,
@@ -141,7 +179,7 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
         <Label className="text-xs">Pain Points</Label>
         <Textarea rows={2} value={form.painPoints} onChange={(e) => update("painPoints", e.target.value)} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Timeline</Label>
           <Input value={form.timeline} onChange={(e) => update("timeline", e.target.value)} placeholder="e.g. 60 days" />
@@ -153,6 +191,62 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
             <SelectContent>{PATH_OPTIONS.map((p) => <SelectItem key={p} value={p}>{label(p)}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        <div className="space-y-1">
+          <Label className="text-xs flex items-center gap-1">
+            BECS Mode
+            {suggested && form.mode !== suggested && (
+              <button
+                type="button"
+                onClick={() => update("mode", suggested)}
+                className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                data-testid="button-apply-suggested-mode"
+              >
+                <Sparkles size={10} /> Use {label(suggested)}
+              </button>
+            )}
+          </Label>
+          <Select value={form.mode} onValueChange={(v) => update("mode", v)}>
+            <SelectTrigger data-testid="select-mode"><SelectValue placeholder="Mode" /></SelectTrigger>
+            <SelectContent>{MODE_OPTIONS.map((m) => <SelectItem key={m} value={m}>{label(m)}</SelectItem>)}</SelectContent>
+          </Select>
+          {form.mode && (
+            <p className="text-[10px] text-muted-foreground leading-tight">{MODE_BLURB[form.mode]}</p>
+          )}
+        </div>
+      </div>
+
+      {/* BECS Qualifier - BANTF score */}
+      <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Target size={14} className="text-primary" />
+            <Label className="text-xs font-semibold">BECS Qualifier Score</Label>
+          </div>
+          <Badge className={`text-xs ${scoreBadgeColor(totalScore)}`} data-testid="badge-total-score">
+            {totalScore}/100
+          </Badge>
+        </div>
+        {[
+          { key: "scoreBudget",    name: "Budget Match",  max: 25, hint: "Can afford services" },
+          { key: "scoreAuthority", name: "Authority",     max: 20, hint: "Decision maker" },
+          { key: "scoreNeed",      name: "Need",          max: 25, hint: "Clear pain point" },
+          { key: "scoreTimeline",  name: "Timeline",      max: 15, hint: "Ready within 90 days" },
+          { key: "scoreFit",       name: "Fit",           max: 15, hint: "Matches ideal client" },
+        ].map(({ key, name, max, hint }) => (
+          <div key={key} className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium">{name} <span className="text-muted-foreground font-normal">· {hint}</span></span>
+              <span className="text-xs font-mono">{(form as any)[key]}/{max}</span>
+            </div>
+            <Slider
+              value={[(form as any)[key]]}
+              max={max}
+              step={1}
+              onValueChange={([v]) => update(key, v)}
+              data-testid={`slider-${key}`}
+            />
+          </div>
+        ))}
       </div>
       <div className="space-y-1">
         <Label className="text-xs">Qualification Notes</Label>
@@ -163,7 +257,13 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
         <Input value={form.nextStep} onChange={(e) => update("nextStep", e.target.value)} />
       </div>
       <Button
-        onClick={() => mutation.mutate()}
+        onClick={() => {
+          // Strip empty mode so CHECK constraint passes; never send leadScore (it's GENERATED)
+          const payload: any = { ...form };
+          if (!payload.mode) payload.mode = null;
+          delete payload.leadScore;
+          mutation.mutate(payload);
+        }}
         disabled={mutation.isPending || !form.name || !form.email}
         className="w-full"
         data-testid="button-save-lead"
@@ -175,12 +275,35 @@ function LeadForm({ onSuccess, initial }: { onSuccess: () => void; initial?: Par
 }
 
 function LeadDetailPanel({ lead, consultBooked }: { lead: Lead; consultBooked: boolean }) {
+  const scoreRows: Array<[string, number, number]> = [
+    ["Budget Match",  lead.scoreBudget    ?? 0, 25],
+    ["Authority",     lead.scoreAuthority ?? 0, 20],
+    ["Need",          lead.scoreNeed      ?? 0, 25],
+    ["Timeline",      lead.scoreTimeline  ?? 0, 15],
+    ["Fit",           lead.scoreFit       ?? 0, 15],
+  ];
   return (
     <div className="mt-3 pt-3 border-t border-border space-y-3">
       {consultBooked && (
         <Badge className="text-xs bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
           Consult booked
         </Badge>
+      )}
+      {(lead.leadScore ?? 0) > 0 && (
+        <div className="rounded-md bg-muted/30 px-3 py-2 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold flex items-center gap-1"><Target size={11} /> BECS Qualifier</span>
+            <Badge className={`text-xs ${scoreBadgeColor(lead.leadScore ?? 0)}`}>{lead.leadScore}/100</Badge>
+          </div>
+          <div className="grid grid-cols-5 gap-1 text-[10px]">
+            {scoreRows.map(([n, v, m]) => (
+              <div key={n} className="text-center">
+                <p className="text-muted-foreground truncate">{n}</p>
+                <p className="font-mono font-medium">{v}/{m}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
         {lead.businessStage && (
@@ -240,6 +363,7 @@ export default function LeadsPage() {
   const { currentEntity } = useEntity();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [modeFilter, setModeFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [expandedLeadId, setExpandedLeadId] = useState<number | null>(null);
@@ -273,11 +397,17 @@ export default function LeadsPage() {
   const filtered = leads.filter((l) => {
     const matchSearch = search === "" || [l.name, l.businessName, l.email].some((v) => v?.toLowerCase().includes(search.toLowerCase()));
     const matchStatus = statusFilter === "all" || l.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchMode   = modeFilter === "all" || l.mode === modeFilter;
+    return matchSearch && matchStatus && matchMode;
   });
 
+  // Sort by lead_score DESC within each status (highest priority first)
   const grouped: Record<string, Lead[]> = {};
-  for (const s of STATUSES) grouped[s] = filtered.filter((l) => l.status === s);
+  for (const s of STATUSES) {
+    grouped[s] = filtered
+      .filter((l) => l.status === s)
+      .sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+  }
 
   return (
     <div className="space-y-5">
@@ -305,6 +435,15 @@ export default function LeadsPage() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{label(s)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={modeFilter} onValueChange={setModeFilter}>
+            <SelectTrigger className="h-9 w-32 text-sm" data-testid="select-mode-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Modes</SelectItem>
+              {MODE_OPTIONS.map((m) => <SelectItem key={m} value={m}>{label(m)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
@@ -344,8 +483,18 @@ export default function LeadsPage() {
                           <div key={lead.id} className="px-5 py-3 hover:bg-muted/30 transition-colors" data-testid={`lead-item-${lead.id}`}>
                             <div className="flex items-center gap-4">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
+                                  {lead.mode && (
+                                    <Badge className={`text-xs shrink-0 ${MODE_BADGE[lead.mode] ?? ""}`} data-testid={`badge-mode-${lead.id}`}>
+                                      {label(lead.mode)}
+                                    </Badge>
+                                  )}
+                                  {(lead.leadScore ?? 0) > 0 && (
+                                    <Badge className={`text-xs shrink-0 ${scoreBadgeColor(lead.leadScore ?? 0)}`} data-testid={`badge-score-${lead.id}`}>
+                                      {lead.leadScore}/100
+                                    </Badge>
+                                  )}
                                   {lead.serviceInterest && (
                                     <Badge variant="outline" className="text-xs shrink-0">{label(lead.serviceInterest)}</Badge>
                                   )}

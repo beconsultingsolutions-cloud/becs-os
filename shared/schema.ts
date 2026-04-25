@@ -140,6 +140,13 @@ export interface Lead {
   qualificationNotes: string | null;
   recommendedPath: string | null;
   nextStep: string | null;
+  scoreBudget: number;
+  scoreAuthority: number;
+  scoreNeed: number;
+  scoreTimeline: number;
+  scoreFit: number;
+  leadScore: number;
+  mode: string | null;
   createdAt: string;
   updatedAt: string;
 }
