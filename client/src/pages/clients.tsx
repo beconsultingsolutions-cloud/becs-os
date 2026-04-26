@@ -12,7 +12,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { Client } from "@shared/schema";
-import { Plus, Search, ArrowRight, CheckCircle2, Clock, UserCheck } from "lucide-react";
+import { Plus, Search, ArrowRight, CheckCircle2, Clock, UserCheck, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function label(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -116,10 +126,46 @@ function ClientForm({ onSuccess, initial }: { onSuccess: () => void; initial?: P
 }
 
 export default function ClientsPage() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const { currentEntity } = useEntity();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
+  const [deleting, setDeleting] = useState<Client | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (client: Client) => {
+      const { error } = await supabase.from("clients").delete().eq("id", client.id);
+      if (error) throw error;
+      // Best-effort audit trail; ignore failures so the delete still succeeds.
+      await supabase.from("automation_events").insert({
+        type: "client_deleted",
+        entity_type: "client",
+        record_id: client.id,
+        description: `Client ${client.clientId || client.name} deleted`,
+        status: "success",
+        triggered_at: new Date().toISOString(),
+        entity_id: client.entityId,
+      }).then(() => undefined, () => undefined);
+    },
+    onSuccess: (_data, client) => {
+      qc.invalidateQueries({ queryKey: ["clients"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["automation-events"] });
+      toast({ title: "Client deleted", description: client.name });
+      setDeleting(null);
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Could not delete client",
+        description: e?.message?.includes("foreign key")
+          ? "This client has linked records (projects, proposals, payments). Archive them first or set status to inactive."
+          : e?.message ?? "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
     queryKey: ["clients", currentEntity],
@@ -196,6 +242,9 @@ export default function ClientsPage() {
                           </Link>
                         </Button>
                         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditing(client)}>Edit</Button>
+                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleting(client)} data-testid={`button-delete-client-${client.id}`} aria-label={`Delete ${client.name}`}>
+                          <Trash2 size={13} />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -221,6 +270,9 @@ export default function ClientsPage() {
                           <Link href={`/clients/${client.id}`}>View</Link>
                         </Button>
                         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditing(client)}>Edit</Button>
+                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleting(client)} data-testid={`button-delete-client-${client.id}`} aria-label={`Delete ${client.name}`}>
+                          <Trash2 size={13} />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -255,6 +307,30 @@ export default function ClientsPage() {
           {editing && <ClientForm onSuccess={() => setEditing(null)} initial={editing} />}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{deleting?.name}</strong>
+              {deleting?.businessName ? <> ({deleting.businessName})</> : null}.
+              This cannot be undone. Linked projects, proposals, or payments will block the delete — archive those first if you hit an error.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); if (deleting) deleteMutation.mutate(deleting); }}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-client"
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
