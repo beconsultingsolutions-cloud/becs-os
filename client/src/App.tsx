@@ -385,7 +385,7 @@ function AppLoading({ authError }: { authError: string | null }) {
 // ─── Route Router (top-level routing with auth branching) ────────────────────
 function AppRoutes() {
   const [location] = useLocation();
-  const { session, becsUser, loading, authError } = useAuth();
+  const { session, becsUser, loading, becsUserLoaded, authError } = useAuth();
 
   // Public routes: no auth required, just render
   if (isPublicPath(location)) {
@@ -400,7 +400,7 @@ function AppRoutes() {
     );
   }
 
-  if (loading) return <AppLoading authError={authError} />;
+  if (loading || (session && !becsUserLoaded)) return <AppLoading authError={authError} />;
 
   // Not logged in → show login for everything
   if (!session) return <LoginPage />;

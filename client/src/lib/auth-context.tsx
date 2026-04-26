@@ -8,6 +8,8 @@ interface AuthState {
   supabaseUser: SupabaseUser | null;
   becsUser: BecsUser | null;
   loading: boolean;
+  /** True once fetchBecsUser has resolved (success or failure) for the current session. */
+  becsUserLoaded: boolean;
   authError: string | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -20,6 +22,7 @@ const AuthContext = createContext<AuthState>({
   supabaseUser: null,
   becsUser: null,
   loading: true,
+  becsUserLoaded: false,
   authError: null,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [becsUser, setBecsUser] = useState<BecsUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [becsUserLoaded, setBecsUserLoaded] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tracks the email we've most recently fetched so we don't double-fetch
@@ -80,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setSupabaseUser(null);
     setBecsUser(null);
+    setBecsUserLoaded(false);
     setAuthError(null);
     lastFetchedEmailRef.current = null;
     setLoading(false);
@@ -96,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // and surfaces any error via setAuthError for visibility.
   const fetchBecsUser = useCallback(async (email: string) => {
     if (lastFetchedEmailRef.current === email && becsUser) {
+      setBecsUserLoaded(true);
       return becsUser;
     }
     try {
@@ -137,6 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setAuthError(err instanceof Error ? err.message : "Failed to load user profile");
       return null;
+    } finally {
+      setBecsUserLoaded(true);
     }
     // becsUser intentionally excluded: we only use it for the cache check,
     // re-running this callback when becsUser changes would defeat the purpose.
@@ -209,6 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await fetchBecsUser(s.user.email);
       } else {
         setBecsUser(null);
+        setBecsUserLoaded(false);
         lastFetchedEmailRef.current = null;
       }
       // If a SIGNED_IN / TOKEN_REFRESHED event fires before getSession resolves,
@@ -239,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setSupabaseUser(null);
       setBecsUser(null);
+      setBecsUserLoaded(false);
       setAuthError(null);
       lastFetchedEmailRef.current = null;
     }
@@ -246,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, supabaseUser, becsUser, loading, authError, signIn, signOut, resetSession }}
+      value={{ session, supabaseUser, becsUser, loading, becsUserLoaded, authError, signIn, signOut, resetSession }}
     >
       {children}
     </AuthContext.Provider>
