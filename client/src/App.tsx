@@ -345,9 +345,20 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
 function AppLoading({ authError }: { authError: string | null }) {
   const { resetSession } = useAuth();
   const [slowBoot, setSlowBoot] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
   useEffect(() => {
     const t = setTimeout(() => setSlowBoot(true), 6000);
-    return () => clearTimeout(t);
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
   }, []);
 
   return (
@@ -357,7 +368,9 @@ function AppLoading({ authError }: { authError: string | null }) {
         <div className="text-center max-w-sm">
           <p className="text-sm text-white/70">Still loading…</p>
           <p className="text-xs text-white/40 mt-1">
-            If this keeps hanging, your session may be stuck.
+            {!isOnline
+              ? "You appear to be offline. Reconnect to the internet and try again."
+              : "Connecting to authentication. If this keeps hanging, your session may be stuck or your network may be slow."}
             {authError ? ` (${authError})` : ""}
           </p>
           <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">

@@ -30,9 +30,21 @@ const AuthContext = createContext<AuthState>({
 });
 
 // Safety net: never allow the spinner to hang forever. If Supabase doesn't
-// respond within 10 s we show the login screen with an error rather than
-// leaving the user staring at a spinner.
-const AUTH_BOOT_TIMEOUT_MS = 10_000;
+// respond within this window we show the login screen with an error rather
+// than leaving the user staring at a spinner.
+//
+// Bumped from 10 s → 20 s because slow mobile networks and cold-started
+// Supabase pods occasionally take 12–15 s to respond on first session load.
+// The 6 s slow-boot UI in <AppLoading /> still gives the user an early
+// out (Reload / Reset) well before this hard ceiling.
+const AUTH_BOOT_TIMEOUT_MS = 20_000;
+
+// Number of times to retry the public.users lookup on transient network
+// errors before giving up. Each retry waits RETRY_BACKOFF_MS * attempt.
+const BECS_USER_FETCH_RETRIES = 2;
+const RETRY_BACKOFF_MS = 750;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Error messages that indicate the locally-persisted refresh token is no
 // longer valid. When we see these we auto-clear storage and bounce the user
@@ -99,24 +111,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch the BECS user record from our users table.
   // Uses .maybeSingle() so zero rows returns null instead of throwing,
   // and surfaces any error via setAuthError for visibility.
+  // Retries on transient network errors with linear backoff.
   const fetchBecsUser = useCallback(async (email: string) => {
     if (lastFetchedEmailRef.current === email && becsUser) {
       setBecsUserLoaded(true);
       return becsUser;
     }
+    const phaseStart = performance.now();
+    let lastError: unknown = null;
+    let data: any = null;
+    let error: any = null;
+
+    for (let attempt = 0; attempt <= BECS_USER_FETCH_RETRIES; attempt++) {
+      try {
+        // Case-insensitive email match + tolerant is_active check.
+        // auth.users emails can differ in casing from public.users, and
+        // is_active has historically been stored as both boolean true and
+        // integer 1 across the SQLite → Supabase migration. Normalize in JS.
+        const res = await supabase
+          .from("users")
+          .select("*")
+          .ilike("email", email)
+          .limit(1)
+          .maybeSingle();
+        data = res.data;
+        error = res.error;
+        if (!error) break;
+        // Auth/permission errors should not be retried
+        if (isStaleTokenError(error)) break;
+        // Treat any other error as potentially transient — retry
+        lastError = error;
+        if (attempt < BECS_USER_FETCH_RETRIES) {
+          console.warn(`[auth] fetchBecsUser attempt ${attempt + 1} failed, retrying:`, error.message);
+          await sleep(RETRY_BACKOFF_MS * (attempt + 1));
+        }
+      } catch (e) {
+        lastError = e;
+        if (attempt < BECS_USER_FETCH_RETRIES) {
+          console.warn(`[auth] fetchBecsUser attempt ${attempt + 1} threw, retrying:`, e);
+          await sleep(RETRY_BACKOFF_MS * (attempt + 1));
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    const elapsedMs = Math.round(performance.now() - phaseStart);
+    console.log(`[auth] fetchBecsUser query took ${elapsedMs}ms`);
+
     try {
-      // Case-insensitive email match + tolerant is_active check.
-      // auth.users emails can differ in casing from public.users, and
-      // is_active has historically been stored as both boolean true and
-      // integer 1 across the SQLite → Supabase migration. Normalize in JS.
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .ilike("email", email)
-        .limit(1)
-        .maybeSingle();
       if (error) {
-        console.error("[auth] fetchBecsUser error:", error);
+        console.error("[auth] fetchBecsUser error after retries:", error);
         if (isStaleTokenError(error)) {
           await resetSession();
           return null;
@@ -145,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     } finally {
       setBecsUserLoaded(true);
+      void lastError; // referenced for diagnostics, no-op if branches consumed it
     }
     // becsUser intentionally excluded: we only use it for the cache check,
     // re-running this callback when becsUser changes would defeat the purpose.
@@ -153,24 +199,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const bootStart = performance.now();
 
     // Hard timeout so the spinner can never hang indefinitely.
     // Covers both `loading` and `becsUserLoaded` — if either is still blocking
     // after AUTH_BOOT_TIMEOUT_MS, force them so the UI unblocks.
     const bootTimeout = setTimeout(() => {
       if (cancelled) return;
-      console.error("[auth] boot timeout reached — forcing loading=false and becsUserLoaded=true");
+      const onlineHint = typeof navigator !== "undefined" && navigator.onLine === false
+        ? " Your device appears to be offline — check your network and try again."
+        : " Check your connection and try signing in again.";
+      console.error(
+        `[auth] boot timeout reached after ${Math.round(performance.now() - bootStart)}ms — forcing loading=false and becsUserLoaded=true`,
+      );
       setLoading(false);
       setBecsUserLoaded(true);
-      setAuthError("Authentication timed out. Please sign in again.");
+      setAuthError(`Authentication timed out.${onlineHint}`);
     }, AUTH_BOOT_TIMEOUT_MS);
 
     // Get initial session
+    const sessionStart = performance.now();
     supabase.auth
       .getSession()
       .then(async ({ data, error }) => {
         if (cancelled) return;
-        console.log("[auth] getSession resolved", error ? `error=${error.message}` : `session=${!!data.session}`);
+        const sessionMs = Math.round(performance.now() - sessionStart);
+        console.log(
+          `[auth] getSession resolved in ${sessionMs}ms`,
+          error ? `error=${error.message}` : `session=${!!data.session}`,
+        );
         if (error) {
           console.error("[auth] getSession error:", error);
           if (isStaleTokenError(error)) {
