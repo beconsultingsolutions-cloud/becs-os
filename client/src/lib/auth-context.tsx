@@ -199,13 +199,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let bootSettled = false;
     const bootStart = performance.now();
 
     // Hard timeout so the spinner can never hang indefinitely.
     // Covers both `loading` and `becsUserLoaded` — if either is still blocking
     // after AUTH_BOOT_TIMEOUT_MS, force them so the UI unblocks.
+    //
+    // CRITICAL: We MUST clear this timer the moment the boot sequence settles
+    // (success or handled failure), otherwise it fires later and overwrites a
+    // perfectly good auth state with a bogus "Authentication timed out" error.
+    // That was the root cause of the spurious error appearing on the login
+    // screen ~20 s after page load.
     const bootTimeout = setTimeout(() => {
-      if (cancelled) return;
+      if (cancelled || bootSettled) return;
       const onlineHint = typeof navigator !== "undefined" && navigator.onLine === false
         ? " Your device appears to be offline — check your network and try again."
         : " Check your connection and try signing in again.";
@@ -216,6 +223,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBecsUserLoaded(true);
       setAuthError(`Authentication timed out.${onlineHint}`);
     }, AUTH_BOOT_TIMEOUT_MS);
+
+    const settleBoot = () => {
+      if (bootSettled) return;
+      bootSettled = true;
+      clearTimeout(bootTimeout);
+      console.log(`[auth] boot settled in ${Math.round(performance.now() - bootStart)}ms`);
+    };
 
     // Get initial session
     const sessionStart = performance.now();
@@ -231,12 +245,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error("[auth] getSession error:", error);
           if (isStaleTokenError(error)) {
+            settleBoot();
             await resetSession();
             return;
           }
           setAuthError(error.message);
           setBecsUserLoaded(true);
           setLoading(false);
+          settleBoot();
           return;
         }
         const s = data.session;
@@ -252,17 +268,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setBecsUserLoaded(true);
         }
         setLoading(false);
+        settleBoot();
       })
       .catch(async (err) => {
         if (cancelled) return;
         console.error("[auth] getSession threw:", err);
         if (isStaleTokenError(err)) {
+          settleBoot();
           await resetSession();
           return;
         }
         setAuthError(err instanceof Error ? err.message : "Failed to load session");
         setBecsUserLoaded(true);
         setLoading(false);
+        settleBoot();
       });
 
     // Listen for auth changes
