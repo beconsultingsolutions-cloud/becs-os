@@ -23,6 +23,13 @@ import {
   type ProposalTier,
 } from "@/lib/proposal-generator";
 import { SERVICE_TEMPLATES } from "@/lib/service-templates";
+import {
+  PROPOSAL_TEMPLATES,
+  suggestTemplates,
+  getTemplate,
+  type ProposalTemplate,
+} from "@/lib/proposal-templates";
+import { Sparkles } from "lucide-react";
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -245,6 +252,51 @@ export default function ProposalsPage() {
   const [form, setForm] = useState({ leadId: "", serviceType: "reality_check", title: "", scope: "", price: "", timeline: "", deliverables: "", ndaRequired: 0 });
   const update = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Templates picker state.
+  // Tracks the currently-applied template key so we can highlight it and let
+  // the user know one-click-prefill happened. "" = freeform / no template.
+  const [appliedTemplateKey, setAppliedTemplateKey] = useState<string>("");
+
+  /**
+   * Apply a proposal template's prefill values to the form. Preserves the
+   * current leadId because the user has usually picked the lead before
+   * choosing a template. Sets ndaRequired to 0/1 to match the form's number
+   * representation.
+   */
+  const applyTemplate = (tpl: ProposalTemplate) => {
+    setForm((f) => ({
+      ...f,
+      title: tpl.prefill.title,
+      serviceType: tpl.prefill.serviceType,
+      scope: tpl.prefill.scope,
+      price: String(tpl.prefill.price),
+      timeline: tpl.prefill.timeline,
+      deliverables: tpl.prefill.deliverables,
+      ndaRequired: tpl.prefill.ndaRequired ? 1 : 0,
+    }));
+    setAppliedTemplateKey(tpl.key);
+    toast({ title: `Template applied: ${tpl.label}` });
+  };
+
+  // When the dialog opens with a lead already selected (or the user picks one
+  // mid-dialog), surface templates that match the lead's mode tag first.
+  const selectedLead = form.leadId
+    ? leads.find((l) => l.id === Number(form.leadId)) || null
+    : null;
+  const orderedTemplates = selectedLead?.mode
+    ? suggestTemplates(selectedLead.mode)
+    : PROPOSAL_TEMPLATES;
+
+  // Reset the template state whenever the dialog closes so the next open
+  // starts clean.
+  const handleDialogChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      setAppliedTemplateKey("");
+      setForm({ leadId: "", serviceType: "reality_check", title: "", scope: "", price: "", timeline: "", deliverables: "", ndaRequired: 0 });
+    }
+  };
+
   const create = useMutation({
     mutationFn: async () => {
       const { count } = await supabase.from("proposals").select("id", { count: "exact", head: true });
@@ -414,10 +466,56 @@ export default function ProposalsPage() {
       )}
 
       {/* Create Proposal Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleDialogChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>New Proposal</DialogTitle></DialogHeader>
-          <div className="space-y-3 max-h-[65vh] overflow-y-auto">
+          <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
+            {/* ─── Templates picker ────────────────────────────────── */}
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-primary" />
+                <Label className="text-xs font-semibold">
+                  Start from a template
+                </Label>
+                {selectedLead?.mode && (
+                  <Badge variant="secondary" className="text-[10px] uppercase">
+                    Lead mode: {selectedLead.mode}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                One click prefills title, service, scope, price, timeline, deliverables, and NDA flag. Edit anything afterward.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {orderedTemplates.map((tpl) => {
+                  const active = appliedTemplateKey === tpl.key;
+                  return (
+                    <button
+                      key={tpl.key}
+                      type="button"
+                      onClick={() => applyTemplate(tpl)}
+                      title={tpl.blurb}
+                      data-testid={`template-${tpl.key}`}
+                      className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                        active
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : tpl.flagship
+                          ? "bg-background border-primary/40 hover:bg-primary/10"
+                          : "bg-background border-border hover:bg-muted"
+                      }`}
+                    >
+                      {tpl.flagship && !active ? <Sparkles size={9} className="inline mr-1" /> : null}
+                      {tpl.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {appliedTemplateKey && (
+                <p className="text-[11px] text-primary">
+                  Applied: {getTemplate(appliedTemplateKey)?.label}. Adjust any field below before saving.
+                </p>
+              )}
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Title *</Label>
               <Input value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Foundation Builder — Client Name" data-testid="input-proposal-title" />
