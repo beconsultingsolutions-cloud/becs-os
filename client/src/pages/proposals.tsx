@@ -11,17 +11,79 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { Proposal, Lead } from "@shared/schema";
-import { FileText, Plus, DollarSign, Clock, CheckCircle2, Send, Eye } from "lucide-react";
+import type { Proposal, Lead, Client } from "@shared/schema";
+import { FileText, Plus, DollarSign, Clock, CheckCircle2, Send, Eye, Download, Link2, PenLine } from "lucide-react";
+import {
+  downloadProposalPDF,
+  DEFAULT_MISSION,
+  DEFAULT_VALUE_PROP,
+  DEFAULT_TIERS,
+  DEFAULT_NEXT_STEPS,
+  type ProposalInput,
+  type ProposalTier,
+} from "@/lib/proposal-generator";
+import { SERVICE_TEMPLATES } from "@/lib/service-templates";
+import {
+  PROPOSAL_TEMPLATES,
+  suggestTemplates,
+  getTemplate,
+  type ProposalTemplate,
+} from "@/lib/proposal-templates";
+import { Sparkles } from "lucide-react";
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
-const SERVICE_OPTIONS = ["reality_check","foundation_builder","business_launch","retainer","add_on"];
+/**
+ * Deliverables may be stored as a JSON-encoded array (newer proposals) or as
+ * a plain comma-separated string (older or admin-created proposals). Parse
+ * defensively so malformed data never crashes the list.
+ */
+function parseDeliverables(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      // Fall through to comma-split
+    }
+  }
+  return trimmed
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const SERVICE_OPTIONS = [
+  "reality_check",
+  "foundation_builder",
+  "business_launch",
+  "strategy_ops_session",
+  "accelerator",
+  "brand_identity",
+  "gtm_launch",
+  "compliance_coaching",
+  "retainer",
+  "add_on",
+];
 const STATUS_OPTIONS = ["draft","sent","viewed","accepted","declined","expired"];
 
 const statusIcons: Record<string, any> = {
   draft: FileText, sent: Send, viewed: Eye, accepted: CheckCircle2, declined: FileText, expired: Clock,
 };
+
+interface ProposalSignature {
+  id: number;
+  proposalId: number;
+  signerName: string;
+  signerEmail: string;
+  signatureDataUrl: string;
+  signedAt: string;
+  ip: string | null;
+  userAgent: string | null;
+  acceptedTerms: boolean;
+}
 
 export default function ProposalsPage() {
   const { currentEntity } = useEntity();
@@ -29,13 +91,42 @@ export default function ProposalsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  // Signature dialog state
+  const [sigDialogOpen, setSigDialogOpen] = useState(false);
+  const [viewingSig, setViewingSig] = useState<ProposalSignature | null>(null);
+
   const { data: proposals = [], isLoading } = useQuery<Proposal[]>({
     queryKey: ["proposals", currentEntity],
     queryFn: async () => {
-      const { data } = await supabase.from("proposals").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("proposals")
+        .select("*")
+        .eq("entity_id", currentEntity)
+        .order("created_at", { ascending: false });
       return toCamelArray<Proposal>(data || []);
     },
   });
+
+  // Load signatures for all accepted proposals
+  const acceptedProposalIds = proposals.filter((p) => p.status === "accepted").map((p) => p.id);
+  const { data: signatures = [] } = useQuery<ProposalSignature[]>({
+    queryKey: ["proposal-signatures", acceptedProposalIds],
+    queryFn: async () => {
+      if (acceptedProposalIds.length === 0) return [];
+      const { data } = await supabase
+        .from("proposal_signatures")
+        .select("*")
+        .in("proposal_id", acceptedProposalIds);
+      return toCamelArray<ProposalSignature>(data || []);
+    },
+    enabled: acceptedProposalIds.length > 0,
+  });
+
+  const sigMap: Record<number, ProposalSignature> = {};
+  for (const s of signatures) {
+    sigMap[s.proposalId] = s;
+  }
+
   const { data: leads = [] } = useQuery<Lead[]>({
     queryKey: ["leads", currentEntity],
     queryFn: async () => {
@@ -43,9 +134,168 @@ export default function ProposalsPage() {
       return toCamelArray<Lead>(data || []);
     },
   });
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ["clients", currentEntity],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("*").eq("entity_id", currentEntity).order("created_at", { ascending: false });
+      return toCamelArray<Client>(data || []);
+    },
+  });
+
+  // ─── PDF generator state ──────────────────────────────────────────────
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfProposal, setPdfProposal] = useState<Proposal | null>(null);
+  const [pdfForm, setPdfForm] = useState<{
+    clientName: string;
+    clientShortName: string;
+    presenterName: string;
+    presenterEmail: string;
+    mission: string;
+    valueProp: string;
+    journeyIntro: string;
+    selectedServices: string[];
+    recommendedPathIntro: string;
+    nextSteps: string;
+    closingTagline: string;
+  }>({
+    clientName: "",
+    clientShortName: "",
+    presenterName: "Brandon Bynum",
+    presenterEmail: "beconsultingsolutions@gmail.com",
+    mission: DEFAULT_MISSION,
+    valueProp: DEFAULT_VALUE_PROP,
+    journeyIntro: "",
+    selectedServices: [],
+    recommendedPathIntro: "",
+    nextSteps: DEFAULT_NEXT_STEPS.join("\n"),
+    closingTagline: "",
+  });
+
+  const openPdfDialog = (p: Proposal) => {
+    const lead = leads.find((l) => l.id === p.leadId);
+    const clientName =
+      lead?.name ||
+      clients.find((c) => c.name)?.name ||
+      p.title ||
+      "Client";
+    const shortName = clientName
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 5);
+    setPdfProposal(p);
+    setPdfForm((f) => ({
+      ...f,
+      clientName,
+      clientShortName: shortName,
+      selectedServices: p.serviceType ? [p.serviceType] : [],
+      journeyIntro: p.scope || "",
+      closingTagline: `${clientName} – Scaling with clarity, strategy, and partnership.`,
+    }));
+    setPdfOpen(true);
+  };
+
+  const handleGeneratePdf = () => {
+    const tiers: ProposalTier[] =
+      pdfForm.selectedServices.length > 0
+        ? pdfForm.selectedServices
+            .map((key) => SERVICE_TEMPLATES.find((s) => s.key === key))
+            .filter((s): s is (typeof SERVICE_TEMPLATES)[number] => !!s)
+            .map((s) => ({
+              name: s.name.toUpperCase(),
+              sublabel: `(${s.duration})`,
+              focus: s.tagline,
+              scope: s.deliverables,
+              deliverable:
+                s.milestones[s.milestones.length - 1]?.title || s.tagline,
+              investment:
+                s.price + (s.paymentNote ? ` · ${s.paymentNote}` : ""),
+            }))
+        : DEFAULT_TIERS;
+
+    const input: ProposalInput = {
+      clientName: pdfForm.clientName,
+      clientShortName: pdfForm.clientShortName || undefined,
+      presenterName: pdfForm.presenterName,
+      presenterEmail: pdfForm.presenterEmail || undefined,
+      missionStatement: pdfForm.mission,
+      valueProposition: pdfForm.valueProp,
+      journeyIntro: pdfForm.journeyIntro || undefined,
+      tiers,
+      recommendedPathIntro: pdfForm.recommendedPathIntro || undefined,
+      nextSteps: pdfForm.nextSteps
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean),
+      closingTagline: pdfForm.closingTagline || undefined,
+    };
+    downloadProposalPDF(
+      input,
+      pdfProposal
+        ? `${pdfProposal.proposalId}-${pdfForm.clientName.replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`
+        : undefined
+    );
+    toast({ title: "Proposal PDF downloaded" });
+    setPdfOpen(false);
+  };
+
+  const toggleService = (key: string) => {
+    setPdfForm((f) => ({
+      ...f,
+      selectedServices: f.selectedServices.includes(key)
+        ? f.selectedServices.filter((k) => k !== key)
+        : [...f.selectedServices, key],
+    }));
+  };
 
   const [form, setForm] = useState({ leadId: "", serviceType: "reality_check", title: "", scope: "", price: "", timeline: "", deliverables: "", ndaRequired: 0 });
   const update = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Templates picker state.
+  // Tracks the currently-applied template key so we can highlight it and let
+  // the user know one-click-prefill happened. "" = freeform / no template.
+  const [appliedTemplateKey, setAppliedTemplateKey] = useState<string>("");
+
+  /**
+   * Apply a proposal template's prefill values to the form. Preserves the
+   * current leadId because the user has usually picked the lead before
+   * choosing a template. Sets ndaRequired to 0/1 to match the form's number
+   * representation.
+   */
+  const applyTemplate = (tpl: ProposalTemplate) => {
+    setForm((f) => ({
+      ...f,
+      title: tpl.prefill.title,
+      serviceType: tpl.prefill.serviceType,
+      scope: tpl.prefill.scope,
+      price: String(tpl.prefill.price),
+      timeline: tpl.prefill.timeline,
+      deliverables: tpl.prefill.deliverables,
+      ndaRequired: tpl.prefill.ndaRequired ? 1 : 0,
+    }));
+    setAppliedTemplateKey(tpl.key);
+    toast({ title: `Template applied: ${tpl.label}` });
+  };
+
+  // When the dialog opens with a lead already selected (or the user picks one
+  // mid-dialog), surface templates that match the lead's mode tag first.
+  const selectedLead = form.leadId
+    ? leads.find((l) => l.id === Number(form.leadId)) || null
+    : null;
+  const orderedTemplates = selectedLead?.mode
+    ? suggestTemplates(selectedLead.mode)
+    : PROPOSAL_TEMPLATES;
+
+  // Reset the template state whenever the dialog closes so the next open
+  // starts clean.
+  const handleDialogChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      setAppliedTemplateKey("");
+      setForm({ leadId: "", serviceType: "reality_check", title: "", scope: "", price: "", timeline: "", deliverables: "", ndaRequired: 0 });
+    }
+  };
 
   const create = useMutation({
     mutationFn: async () => {
@@ -90,6 +340,12 @@ export default function ProposalsPage() {
     },
   });
 
+  const copyShareLink = async (shareToken: string) => {
+    const url = `${window.location.origin}/#/p/${shareToken}`;
+    await navigator.clipboard.writeText(url);
+    toast({ title: "Share link copied" });
+  };
+
   const getLead = (id: number | null) => id ? leads.find((l) => l.id === id) : null;
 
   return (
@@ -117,7 +373,8 @@ export default function ProposalsPage() {
           {proposals.map((p) => {
             const lead = getLead(p.leadId);
             const Icon = statusIcons[p.status] || FileText;
-            const deliverables = p.deliverables ? JSON.parse(p.deliverables) : [];
+            const deliverables = parseDeliverables(p.deliverables);
+            const sig = sigMap[p.id];
             return (
               <Card key={p.id} data-testid={`proposal-card-${p.id}`}>
                 <CardContent className="p-5">
@@ -129,6 +386,11 @@ export default function ProposalsPage() {
                       </div>
                       <p className="text-xs text-muted-foreground">{p.proposalId} {lead ? `· ${lead.name}` : ""}</p>
                       {p.scope && <p className="text-xs text-muted-foreground mt-1">{p.scope}</p>}
+                      {p.status === "accepted" && sig && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                          Signed by {sig.signerName} on {new Date(sig.signedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {p.price && (
@@ -151,7 +413,39 @@ export default function ProposalsPage() {
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     {p.timeline && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock size={11} /> {p.timeline}</span>}
                     {p.ndaRequired ? <Badge variant="outline" className="text-xs border-red-200 text-red-600">NDA Required</Badge> : null}
-                    <div className="ml-auto flex gap-1">
+                    <div className="ml-auto flex gap-1 flex-wrap">
+                      {p.shareToken && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => copyShareLink(p.shareToken!)}
+                          data-testid={`button-copy-link-${p.id}`}
+                          title="Copy share link"
+                        >
+                          <Link2 size={11} className="mr-1" /> Copy link
+                        </Button>
+                      )}
+                      {p.status === "accepted" && sig && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs border-green-300 text-green-700"
+                          onClick={() => { setViewingSig(sig); setSigDialogOpen(true); }}
+                          data-testid={`button-view-sig-${p.id}`}
+                        >
+                          <PenLine size={11} className="mr-1" /> View signature
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => openPdfDialog(p)}
+                        data-testid={`button-generate-pdf-${p.id}`}
+                      >
+                        <Download size={11} className="mr-1" /> Generate PDF
+                      </Button>
                       {p.status === "draft" && (
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => updateStatus.mutate({ id: p.id, status: "sent" })}>
                           Mark Sent
@@ -171,10 +465,57 @@ export default function ProposalsPage() {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Create Proposal Dialog */}
+      <Dialog open={open} onOpenChange={handleDialogChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>New Proposal</DialogTitle></DialogHeader>
-          <div className="space-y-3 max-h-[65vh] overflow-y-auto">
+          <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
+            {/* ─── Templates picker ────────────────────────────────── */}
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-primary" />
+                <Label className="text-xs font-semibold">
+                  Start from a template
+                </Label>
+                {selectedLead?.mode && (
+                  <Badge variant="secondary" className="text-[10px] uppercase">
+                    Lead mode: {selectedLead.mode}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                One click prefills title, service, scope, price, timeline, deliverables, and NDA flag. Edit anything afterward.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {orderedTemplates.map((tpl) => {
+                  const active = appliedTemplateKey === tpl.key;
+                  return (
+                    <button
+                      key={tpl.key}
+                      type="button"
+                      onClick={() => applyTemplate(tpl)}
+                      title={tpl.blurb}
+                      data-testid={`template-${tpl.key}`}
+                      className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                        active
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : tpl.flagship
+                          ? "bg-background border-primary/40 hover:bg-primary/10"
+                          : "bg-background border-border hover:bg-muted"
+                      }`}
+                    >
+                      {tpl.flagship && !active ? <Sparkles size={9} className="inline mr-1" /> : null}
+                      {tpl.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {appliedTemplateKey && (
+                <p className="text-[11px] text-primary">
+                  Applied: {getTemplate(appliedTemplateKey)?.label}. Adjust any field below before saving.
+                </p>
+              )}
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Title *</Label>
               <Input value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Foundation Builder — Client Name" data-testid="input-proposal-title" />
@@ -217,6 +558,185 @@ export default function ProposalsPage() {
             </div>
             <Button onClick={() => create.mutate()} disabled={create.isPending || !form.title} className="w-full" data-testid="button-save-proposal">
               {create.isPending ? "Saving…" : "Create Proposal"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Signature Dialog */}
+      <Dialog open={sigDialogOpen} onOpenChange={setSigDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Signature Details</DialogTitle></DialogHeader>
+          {viewingSig && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Signer Name</p>
+                  <p className="font-medium">{viewingSig.signerName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Signer Email</p>
+                  <p className="font-medium">{viewingSig.signerEmail}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Signed At</p>
+                  <p className="font-medium">{new Date(viewingSig.signedAt).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Terms Accepted</p>
+                  <p className="font-medium">{viewingSig.acceptedTerms ? "Yes" : "No"}</p>
+                </div>
+                {viewingSig.ip && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">IP Address</p>
+                    <p className="font-medium font-mono text-xs">{viewingSig.ip}</p>
+                  </div>
+                )}
+              </div>
+              {viewingSig.signatureDataUrl && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Signature</p>
+                  <div className="border rounded-lg p-3 bg-white">
+                    <img
+                      src={viewingSig.signatureDataUrl}
+                      alt="Signature"
+                      className="max-w-full h-auto max-h-32 mx-auto"
+                      data-testid="signature-image"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Generate PDF Dialog ─────────────────────────────────────── */}
+      <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Generate Proposal PDF</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+              Client name and service are auto-filled from the proposal. Edit the narrative sections below as needed — the PDF uses the B.A.S layout with cover, mission, growth journey, intake, pricing matrix, and next steps.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Client Name *</Label>
+                <Input
+                  value={pdfForm.clientName}
+                  onChange={(e) => setPdfForm((f) => ({ ...f, clientName: e.target.value }))}
+                  data-testid="input-pdf-client-name"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Short Name / Initials</Label>
+                <Input
+                  value={pdfForm.clientShortName}
+                  onChange={(e) => setPdfForm((f) => ({ ...f, clientShortName: e.target.value }))}
+                  placeholder="B.A.S"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Presenter Name</Label>
+                <Input
+                  value={pdfForm.presenterName}
+                  onChange={(e) => setPdfForm((f) => ({ ...f, presenterName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Presenter Email</Label>
+                <Input
+                  value={pdfForm.presenterEmail}
+                  onChange={(e) => setPdfForm((f) => ({ ...f, presenterEmail: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Services to Include (auto-fills pricing tiers)</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {SERVICE_TEMPLATES.map((s) => {
+                  const selected = pdfForm.selectedServices.includes(s.key);
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => toggleService(s.key)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        selected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background hover:bg-muted border-border"
+                      }`}
+                      data-testid={`pdf-service-${s.key}`}
+                    >
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave empty to use the default Plan / Evolve / Succeed tiers.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Mission Statement</Label>
+              <Textarea
+                rows={3}
+                value={pdfForm.mission}
+                onChange={(e) => setPdfForm((f) => ({ ...f, mission: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Value Proposition</Label>
+              <Textarea
+                rows={3}
+                value={pdfForm.valueProp}
+                onChange={(e) => setPdfForm((f) => ({ ...f, valueProp: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Growth Journey — Client Introduction</Label>
+              <Textarea
+                rows={3}
+                value={pdfForm.journeyIntro}
+                onChange={(e) => setPdfForm((f) => ({ ...f, journeyIntro: e.target.value }))}
+                placeholder="Based in Madrid, the client is a streetwear brand development studio…"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Next Steps (one per line)</Label>
+              <Textarea
+                rows={4}
+                value={pdfForm.nextSteps}
+                onChange={(e) => setPdfForm((f) => ({ ...f, nextSteps: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Closing Tagline</Label>
+              <Input
+                value={pdfForm.closingTagline}
+                onChange={(e) => setPdfForm((f) => ({ ...f, closingTagline: e.target.value }))}
+              />
+            </div>
+
+            <Button
+              onClick={handleGeneratePdf}
+              disabled={!pdfForm.clientName}
+              className="w-full"
+              data-testid="button-download-pdf"
+            >
+              <Download size={14} className="mr-1" /> Download PDF
             </Button>
           </div>
         </DialogContent>

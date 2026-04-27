@@ -1,0 +1,13 @@
+[build]
+  command = "npm ci && npm run build:client"
+  publish = "dist/public"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+# SPA fallback: every route resolves to index.html so the hash router can take over.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

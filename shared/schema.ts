@@ -10,6 +10,34 @@ export const ENTITY_LABELS: Record<EntityId, string> = {
   me_and_them: "ME & THEM",
 };
 
+// ─── SERVICE TYPES ──────────────────────────────────────────────────────────
+export const SERVICE_TYPES = [
+  "reality_check",
+  "foundation_builder",
+  "business_launch",
+  "strategy_ops_session",
+  "accelerator",
+  "brand_identity",
+  "gtm_launch",
+  "compliance_coaching",
+  "retainer",
+  "add_on",
+] as const;
+export type ServiceType = (typeof SERVICE_TYPES)[number];
+
+export const SERVICE_LABELS: Record<ServiceType, string> = {
+  reality_check: "P.E.S. Reality Check",
+  foundation_builder: "Foundation Builder",
+  business_launch: "P.E.S. Business Launch",
+  strategy_ops_session: "Strategy & Operations Session",
+  accelerator: "B.E. Accelerator Program",
+  brand_identity: "Brand Identity & Positioning",
+  gtm_launch: "Go-To-Market Launch Strategy",
+  compliance_coaching: "Compliance Coaching",
+  retainer: "Retainer",
+  add_on: "Add-On",
+};
+
 // ─── ROLE ENUM ───────────────────────────────────────────────────────────────
 export const ROLES = ["super_admin", "admin", "entity_manager", "contractor", "client_user"] as const;
 export type UserRole = (typeof ROLES)[number];
@@ -112,6 +140,13 @@ export interface Lead {
   qualificationNotes: string | null;
   recommendedPath: string | null;
   nextStep: string | null;
+  scoreBudget: number;
+  scoreAuthority: number;
+  scoreNeed: number;
+  scoreTimeline: number;
+  scoreFit: number;
+  leadScore: number;
+  mode: string | null;
   createdAt: string;
   updatedAt: string;
   // Prospecting fields
@@ -221,6 +256,7 @@ export interface Proposal {
   status: string;
   sentAt: string | null;
   acceptedAt: string | null;
+  shareToken: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -399,6 +435,69 @@ export interface Expense {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── BE UNIVERSITY (course catalog + enrollments) ───────────────────────────
+
+export interface BeUCourse {
+  id: number;
+  courseId: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  mode: "plan" | "evolve" | "succeed" | null;
+  tier: "foundation" | "core" | "advanced" | "retainer" | null;
+  priceCents: number;
+  durationWeeks: number | null;
+  coverImageUrl: string | null;
+  externalId: string | null;
+  externalUrl: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BeUEnrollment {
+  id: number;
+  enrollmentId: string;
+  clientId: number;
+  courseId: number;
+  status: "enrolled" | "in_progress" | "completed" | "dropped" | "revoked";
+  progressPct: number;
+  source: "manual" | "proposal_close" | "be_u_webhook" | "admin_grant";
+  proposalId: number | null;
+  externalId: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastActive: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BeUCertificate {
+  id: number;
+  certificateId: string;
+  enrollmentId: number;
+  certUrl: string | null;
+  certImageUrl: string | null;
+  issuedAt: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface BeUWebhookEvent {
+  id: number;
+  eventId: string;
+  direction: "inbound" | "outbound";
+  source: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  status: "received" | "processed" | "failed" | "skipped";
+  errorMessage: string | null;
+  clientId: number | null;
+  enrollmentId: number | null;
+  receivedAt: string;
+  processedAt: string | null;
 }
 
 // ─── INSERT SCHEMAS (Zod) ─────────────────────────────────────────────────────

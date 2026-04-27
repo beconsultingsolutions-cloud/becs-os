@@ -13,6 +13,10 @@ const SERVICE_COLORS: Record<string, string> = {
   reality_check: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
   foundation_builder: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   business_launch: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
+  strategy_ops_session: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  accelerator: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+  brand_identity: "bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300",
+  gtm_launch: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
   retainer: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   add_on: "bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300",
 };
