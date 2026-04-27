@@ -114,6 +114,14 @@ export interface Lead {
   nextStep: string | null;
   createdAt: string;
   updatedAt: string;
+  // Prospecting fields
+  linkedinUrl?: string | null;
+  location?: string | null;
+  fitScore?: number | null;
+  priority?: string | null;
+  website?: string | null;
+  industry?: string | null;
+  fitReasoning?: string | null;
 }
 
 export interface Client {
