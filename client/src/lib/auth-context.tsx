@@ -155,14 +155,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     // Hard timeout so the spinner can never hang indefinitely.
+    // Covers both `loading` and `becsUserLoaded` — if either is still blocking
+    // after AUTH_BOOT_TIMEOUT_MS, force them so the UI unblocks.
     const bootTimeout = setTimeout(() => {
       if (cancelled) return;
-      setLoading((prev) => {
-        if (!prev) return prev;
-        console.warn("[auth] boot timeout reached, forcing loading=false");
-        setAuthError("Authentication timed out. Please sign in again.");
-        return false;
-      });
+      console.error("[auth] boot timeout reached — forcing loading=false and becsUserLoaded=true");
+      setLoading(false);
+      setBecsUserLoaded(true);
+      setAuthError("Authentication timed out. Please sign in again.");
     }, AUTH_BOOT_TIMEOUT_MS);
 
     // Get initial session
@@ -170,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .getSession()
       .then(async ({ data, error }) => {
         if (cancelled) return;
+        console.log("[auth] getSession resolved", error ? `error=${error.message}` : `session=${!!data.session}`);
         if (error) {
           console.error("[auth] getSession error:", error);
           if (isStaleTokenError(error)) {
@@ -177,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
           setAuthError(error.message);
+          setBecsUserLoaded(true);
           setLoading(false);
           return;
         }
@@ -184,7 +186,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(s);
         setSupabaseUser(s?.user ?? null);
         if (s?.user?.email) {
-          await fetchBecsUser(s.user.email);
+          console.log("[auth] fetchBecsUser start (from getSession)");
+          const result = await fetchBecsUser(s.user.email);
+          console.log("[auth] fetchBecsUser end (from getSession) becsUser=", result?.email ?? null);
+        } else {
+          // No session at mount — nothing to fetch, unblock immediately
+          console.log("[auth] getSession resolved with no session — setting becsUserLoaded=true");
+          setBecsUserLoaded(true);
         }
         setLoading(false);
       })
@@ -196,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         setAuthError(err instanceof Error ? err.message : "Failed to load session");
+        setBecsUserLoaded(true);
         setLoading(false);
       });
 
@@ -204,6 +213,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, s) => {
       if (cancelled) return;
+      console.log("[auth] event=", event, "session=", !!s);
+
       // TOKEN_REFRESHED with no session means the refresh call failed silently.
       // Treat it as a stale session and recover.
       if (event === "TOKEN_REFRESHED" && !s) {
@@ -211,20 +222,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await resetSession();
         return;
       }
+
       setSession(s);
       setSupabaseUser(s?.user ?? null);
+
       if (s?.user?.email) {
-        await fetchBecsUser(s.user.email);
-      } else {
+        console.log("[auth] fetchBecsUser start (from event=", event, ")");
+        const result = await fetchBecsUser(s.user.email);
+        console.log("[auth] fetchBecsUser end (from event=", event, ") becsUser=", result?.email ?? null);
+      } else if (event === "SIGNED_OUT") {
         setBecsUser(null);
-        setBecsUserLoaded(false);
+        setBecsUserLoaded(true);
         lastFetchedEmailRef.current = null;
+      } else {
+        // No session and not SIGNED_OUT (e.g. INITIAL_SESSION with null session)
+        // Still unblock the gate so the UI doesn't hang.
+        setBecsUserLoaded(true);
       }
-      // If a SIGNED_IN / TOKEN_REFRESHED event fires before getSession resolves,
-      // make sure we stop showing the spinner.
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "SIGNED_OUT") {
-        setLoading(false);
-      }
+
+      // Any auth event should unblock the loading spinner.
+      setLoading(false);
     });
 
     return () => {
