@@ -429,6 +429,69 @@ export interface Expense {
   updatedAt: string;
 }
 
+// ─── BE UNIVERSITY (course catalog + enrollments) ───────────────────────────
+
+export interface BeUCourse {
+  id: number;
+  courseId: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  mode: "plan" | "evolve" | "succeed" | null;
+  tier: "foundation" | "core" | "advanced" | "retainer" | null;
+  priceCents: number;
+  durationWeeks: number | null;
+  coverImageUrl: string | null;
+  externalId: string | null;
+  externalUrl: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BeUEnrollment {
+  id: number;
+  enrollmentId: string;
+  clientId: number;
+  courseId: number;
+  status: "enrolled" | "in_progress" | "completed" | "dropped" | "revoked";
+  progressPct: number;
+  source: "manual" | "proposal_close" | "be_u_webhook" | "admin_grant";
+  proposalId: number | null;
+  externalId: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastActive: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BeUCertificate {
+  id: number;
+  certificateId: string;
+  enrollmentId: number;
+  certUrl: string | null;
+  certImageUrl: string | null;
+  issuedAt: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface BeUWebhookEvent {
+  id: number;
+  eventId: string;
+  direction: "inbound" | "outbound";
+  source: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  status: "received" | "processed" | "failed" | "skipped";
+  errorMessage: string | null;
+  clientId: number | null;
+  enrollmentId: number | null;
+  receivedAt: string;
+  processedAt: string | null;
+}
+
 // ─── INSERT SCHEMAS (Zod) ─────────────────────────────────────────────────────
 
 export const insertUserSchema = z.object({

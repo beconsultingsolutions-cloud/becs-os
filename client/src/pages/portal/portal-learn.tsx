@@ -25,6 +25,29 @@ interface ModuleProgressRow {
   updatedAt: string;
 }
 
+interface BeUEnrollmentRow {
+  id: number;
+  enrollmentId: string;
+  status: string;
+  progressPct: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  beUCourses?: {
+    title: string;
+    description: string | null;
+    mode: string | null;
+    tier: string | null;
+    durationWeeks: number | null;
+    externalUrl: string | null;
+  } | null;
+}
+
+const MODE_DOT: Record<string, string> = {
+  plan: "bg-blue-500",
+  evolve: "bg-amber-500",
+  succeed: "bg-purple-500",
+};
+
 const MODULE_DEFS = [
   {
     id: "plan",
@@ -104,6 +127,40 @@ export default function PortalLearnPage() {
 
   const allRows = progressQuery.data ?? [];
 
+  // BE University enrollments for this client (joins course title/mode)
+  const enrollmentsQuery = useQuery<BeUEnrollmentRow[]>({
+    queryKey: ["portal", "be-u-enrollments", clientId],
+    enabled: !!clientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("be_u_enrollments")
+        .select("id, enrollment_id, status, progress_pct, started_at, completed_at, be_u_courses(title, description, mode, tier, duration_weeks, external_url)")
+        .eq("client_id", clientId!)
+        .neq("status", "revoked")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        id: row.id,
+        enrollmentId: row.enrollment_id,
+        status: row.status,
+        progressPct: row.progress_pct,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        beUCourses: row.be_u_courses
+          ? {
+              title: row.be_u_courses.title,
+              description: row.be_u_courses.description,
+              mode: row.be_u_courses.mode,
+              tier: row.be_u_courses.tier,
+              durationWeeks: row.be_u_courses.duration_weeks,
+              externalUrl: row.be_u_courses.external_url,
+            }
+          : null,
+      })) as BeUEnrollmentRow[];
+    },
+  });
+  const enrollments = enrollmentsQuery.data ?? [];
+
   // Compute per-module completion counts (only counting actual step rows, not 'form')
   function modulePercent(moduleId: string, totalSteps: number): number {
     const completedSteps = allRows.filter(
@@ -134,6 +191,66 @@ export default function PortalLearnPage() {
           build a profitable, scalable business.
         </p>
       </section>
+
+      {/* My BE University courses */}
+      {enrollments.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-slate-900">My BE University courses</h2>
+            <span className="text-xs text-slate-500">{enrollments.length} enrolled</span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {enrollments.map((e) => {
+              const c = e.beUCourses;
+              const pct = e.progressPct ?? 0;
+              const isComplete = pct >= 100 || e.status === "completed";
+              return (
+                <Card key={e.id} className="border-slate-200" data-testid={`portal-enrollment-${e.id}`}>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      {c?.mode && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+                          <span className={`w-2 h-2 rounded-full ${MODE_DOT[c.mode] ?? "bg-slate-400"}`} />
+                          {c.mode}
+                        </span>
+                      )}
+                      {c?.tier && (
+                        <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">{c.tier}</span>
+                      )}
+                      {isComplete && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[hsl(83,60%,57%)]/15 text-[hsl(83,60%,35%)] ml-auto">
+                          <CheckCircle2 size={11} /> Complete
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 mb-1">{c?.title ?? "Course"}</h3>
+                    {c?.description && <p className="text-xs text-slate-600 mb-3 line-clamp-2">{c.description}</p>}
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                        <span>Progress</span>
+                        <span className="font-semibold text-slate-800">{pct}%</span>
+                      </div>
+                      <Progress value={pct} className="h-2 bg-slate-100 [&>div]:bg-[hsl(83,60%,57%)]" />
+                    </div>
+                    {c?.externalUrl ? (
+                      <a href={c.externalUrl} target="_blank" rel="noreferrer" className="block">
+                        <Button size="sm" className="w-full bg-[hsl(232,45%,18%)] hover:bg-[hsl(232,45%,12%)] text-white">
+                          {pct > 0 ? "Continue" : "Open course"}
+                          <ArrowRight size={14} className="ml-2" />
+                        </Button>
+                      </a>
+                    ) : (
+                      <Button size="sm" disabled className="w-full" variant="outline">
+                        Course launching soon
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {clientQuery.isLoading || progressQuery.isLoading ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">

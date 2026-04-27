@@ -11,9 +11,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
-import type { Client, Project, Milestone, Meeting, LegalDoc, Recap, OnboardingItem, AddOn } from "@shared/schema";
-import { ArrowLeft, CheckCircle2, Clock, Lock, CircleDot, CalendarDays, FileText, BookOpen, Sparkles, Send, Trash2, ExternalLink } from "lucide-react";
+import type { Client, Project, Milestone, Meeting, LegalDoc, Recap, OnboardingItem, AddOn, BeUEnrollment, BeUCourse } from "@shared/schema";
+import { ArrowLeft, CheckCircle2, Clock, Lock, CircleDot, CalendarDays, FileText, BookOpen, Sparkles, Send, Trash2, ExternalLink, GraduationCap, UserPlus } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+
+const MODE_BADGE_CSS: Record<string, string> = {
+  plan:    "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
+  evolve:  "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
+  succeed: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800",
+};
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -113,6 +119,65 @@ export default function ClientDetailPage() {
     queryFn: async () => {
       const { data } = await supabase.from("add_ons").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
       return toCamelArray<AddOn>(data || []);
+    },
+  });
+
+  // ── BE University enrollments + course catalog for picker ─────────────
+  const { data: enrollments = [] } = useQuery<(BeUEnrollment & { courseTitle?: string; courseMode?: string })[]>({
+    queryKey: ["be-u-enrollments-client", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("be_u_enrollments")
+        .select("*, be_u_courses(title, mode)")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map((row: any) => ({
+        ...toCamel(row),
+        courseTitle: row.be_u_courses?.title,
+        courseMode:  row.be_u_courses?.mode,
+      })) as any;
+    },
+    enabled: !!clientId,
+  });
+  const { data: allCourses = [] } = useQuery<BeUCourse[]>({
+    queryKey: ["be-u-courses-published"],
+    queryFn: async () => {
+      const { data } = await supabase.from("be_u_courses").select("*").eq("is_published", true).order("mode").order("tier");
+      return toCamelArray<BeUCourse>(data || []);
+    },
+  });
+  const [enrollPick, setEnrollPick] = useState<string>("");
+  const enrolledIds = new Set(enrollments.map((e) => e.courseId));
+  const enrollClient = useMutation({
+    mutationFn: async (courseDbId: number) => {
+      const { count } = await supabase.from("be_u_enrollments").select("id", { count: "exact", head: true });
+      const enrollmentId = `BECS-EN-${String((count || 0) + 1).padStart(4, "0")}`;
+      const { error } = await supabase.from("be_u_enrollments").insert({
+        enrollment_id: enrollmentId,
+        client_id: clientId,
+        course_id: courseDbId,
+        status: "enrolled",
+        source: "admin_grant",
+        started_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["be-u-enrollments-client", clientId] });
+      setEnrollPick("");
+      toast({ title: "Client enrolled" });
+    },
+    onError: (e: any) => toast({ title: "Enroll failed", description: e.message, variant: "destructive" }),
+  });
+  const removeEnrollment = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase.from("be_u_enrollments").update({ status: "revoked" }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["be-u-enrollments-client", clientId] });
+      toast({ title: "Enrollment revoked" });
     },
   });
 
@@ -307,6 +372,7 @@ export default function ClientDetailPage() {
           <TabsTrigger value="addons" className="text-xs">Add-ons</TabsTrigger>
           <TabsTrigger value="messages" className="text-xs">Messages</TabsTrigger>
           <TabsTrigger value="documents" className="text-xs">Documents</TabsTrigger>
+          <TabsTrigger value="courses" className="text-xs" data-testid="tab-courses">Courses</TabsTrigger>
         </TabsList>
 
         {/* Milestones */}
@@ -646,6 +712,87 @@ export default function ClientDetailPage() {
                             <Trash2 size={14} />
                           </Button>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Courses (BE University) */}
+        <TabsContent value="courses" className="mt-4">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <GraduationCap size={14} /> Enroll in a course
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <Select value={enrollPick} onValueChange={setEnrollPick}>
+                    <SelectTrigger data-testid="select-enroll-course"><SelectValue placeholder="Pick a course" /></SelectTrigger>
+                    <SelectContent>
+                      {allCourses.filter((c) => !enrolledIds.has(c.id)).map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.title}{c.mode ? ` · ${label(c.mode)}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={() => enrollPick && enrollClient.mutate(parseInt(enrollPick, 10))}
+                    disabled={!enrollPick || enrollClient.isPending}
+                    data-testid="button-enroll-client"
+                  >
+                    <UserPlus size={14} className="mr-1" />
+                    {enrollClient.isPending ? "Enrolling…" : "Enroll"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Clients are also auto-enrolled in their mode's foundation course when a proposal is accepted.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Active enrollments ({enrollments.filter(e => e.status !== "revoked").length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {enrollments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No enrollments yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {enrollments.map((e) => (
+                      <div key={e.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border" data-testid={`enrollment-${e.id}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs text-muted-foreground">{e.enrollmentId}</span>
+                            <span className="font-medium text-sm">{e.courseTitle ?? `Course #${e.courseId}`}</span>
+                            {e.courseMode && <Badge className={`text-xs ${MODE_BADGE_CSS[e.courseMode]}`}>{label(e.courseMode)}</Badge>}
+                            <Badge variant="outline" className="text-xs">{label(e.status)}</Badge>
+                            <Badge variant="outline" className="text-xs">{label(e.source)}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <div className="flex-1 max-w-xs h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary transition-all" style={{ width: `${e.progressPct}%` }} />
+                            </div>
+                            <span className="text-xs font-mono text-muted-foreground">{e.progressPct}%</span>
+                          </div>
+                        </div>
+                        {e.status !== "revoked" && (
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => { if (confirm("Revoke this enrollment?")) removeEnrollment.mutate(e.id); }}
+                            data-testid={`button-revoke-enrollment-${e.id}`}
+                          >
+                            <Trash2 size={13} />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>

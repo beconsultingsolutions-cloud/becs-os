@@ -19,6 +19,7 @@ import AutomationPage from "@/pages/automation";
 import ReportsPage from "@/pages/reports";
 import TrainingPage from "@/pages/training";
 import ProgramModulesPage from "@/pages/program-modules";
+import BeUniversityPage from "@/pages/be-university";
 import NotFound from "@/pages/not-found";
 import { ErrorBoundary } from "@/lib/error-boundary";
 import IntakeLandingPage from "@/pages/portal/intake-landing";
@@ -58,6 +59,7 @@ const resourceItems = [
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/training", label: "Training", icon: GraduationCap },
   { href: "/program-modules", label: "Program modules", icon: GraduationCap },
+  { href: "/be-university", label: "BE University", icon: GraduationCap },
 ];
 
 const ADMIN_ROLES: UserRole[] = ["super_admin", "admin", "entity_manager", "contractor"];
@@ -474,6 +476,7 @@ function AppRoutes() {
             <Route path="/reports" component={ReportsPage} />
             <Route path="/training" component={TrainingPage} />
             <Route path="/program-modules" component={ProgramModulesPage} />
+            <Route path="/be-university" component={BeUniversityPage} />
             <Route component={NotFound} />
           </Switch>
         </ErrorBoundary>
