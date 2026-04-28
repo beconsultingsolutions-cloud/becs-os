@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BECS Outreach Mainframe</title>
+<style>
+:root{--purple:#2B287E;--lime:#8DC63F;--navy:#2D2A5F;--cream:#F4F7E9;--slate:#9BA9B6;--ink:#111827;--card:#ffffff;}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,var(--cream),#fff);color:var(--ink)}header{background:var(--purple);color:white;padding:28px 24px}header h1{margin:0;font-size:28px}header p{margin:8px 0 0;color:#e8e8ff}.wrap{padding:24px;max-width:1200px;margin:auto}.panel{background:var(--card);border:1px solid #e5e7eb;border-radius:18px;padding:18px;margin-bottom:20px;box-shadow:0 10px 24px rgba(43,40,126,.08)}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.stat{background:#f8fafc;border-left:5px solid var(--lime);border-radius:12px;padding:14px}.stat strong{display:block;font-size:26px;color:var(--purple)}label{font-weight:700;color:var(--navy);font-size:13px}input,select,textarea{width:100%;padding:10px;margin:6px 0 12px;border:1px solid var(--slate);border-radius:10px}button{background:var(--lime);border:0;border-radius:10px;padding:11px 14px;font-weight:800;cursor:pointer}.board{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}.col{background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:12px;min-height:240px}.col h3{margin:0 0 12px;color:var(--purple);font-size:16px}.card{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:0 6px 14px rgba(0,0,0,.04)}.card b{color:var(--navy)}.meta{font-size:12px;color:#64748b;margin-top:6px}.actions{display:flex;gap:6px;margin-top:10px}.actions button{font-size:12px;padding:7px 8px}.ghost{background:#e5e7eb}.danger{background:#fecaca}.note{font-size:13px;color:#475569;line-height:1.45}.footer{font-size:12px;color:#64748b;text-align:center;margin:24px 0}@media(max-width:900px){.grid,.board{grid-template-columns:1fr}.wrap{padding:14px}}
+</style>
+</head>
+<body>
+<header>
+<h1>BECS Outreach Mainframe</h1>
+<p>Plan → Evolve → Success tracker for outreach, cold pipeline, and revenue movement. Build mode only. Training comes later.</p>
+</header>
+<div class="wrap">
+<section class="panel">
+<div class="grid">
+<div class="stat"><strong id="total">0</strong>Total Leads</div>
+<div class="stat"><strong id="sent">0</strong>Contacted</div>
+<div class="stat"><strong id="talking">0</strong>Conversation</div>
+<div class="stat"><strong id="won">0</strong>Closed</div>
+</div>
+</section>
+<section class="panel">
+<h2>Add Lead</h2>
+<div class="grid">
+<div><label>Name / Business</label><input id="name" placeholder="Business or contact" /></div>
+<div><label>Lane</label><select id="lane"><option>BECS Portal Starter</option><option>LEAA Apparel Development</option><option>Partnership / Tool</option><option>Admin / Compliance</option></select></div>
+<div><label>Source</label><select id="source"><option>Cold</option><option>Warm</option><option>Referral</option><option>LinkedIn</option><option>Gmail</option></select></div>
+<div><label>Next Action</label><input id="next" placeholder="Send intro / follow up / offer" /></div>
+</div>
+<label>Notes</label><textarea id="notes" placeholder="Pain point, context, offer angle"></textarea>
+<button onclick="addLead()">Add to Pipeline</button>
+<p class="note">Control rule: every lead must move toward message sent, reply, offer, or close. If not, park it.</p>
+</section>
+<section class="board" id="board">
+<div class="col" data-stage="Lead"><h3>Lead</h3></div>
+<div class="col" data-stage="Contacted"><h3>Contacted</h3></div>
+<div class="col" data-stage="Conversation"><h3>Conversation</h3></div>
+<div class="col" data-stage="Offer"><h3>Offer</h3></div>
+<div class="col" data-stage="Closed"><h3>Closed</h3></div>
+</section>
+<div class="footer">BE Consulting Solutions — structure first, scale second.</div>
+</div>
+<script>
+const stages=['Lead','Contacted','Conversation','Offer','Closed'];let leads=JSON.parse(localStorage.getItem('becsLeads')||'[]');
+function save(){localStorage.setItem('becsLeads',JSON.stringify(leads));render();}
+function addLead(){const lead={id:Date.now(),name:val('name'),lane:val('lane'),source:val('source'),next:val('next'),notes:val('notes'),stage:'Lead',created:new Date().toLocaleDateString()};if(!lead.name)return;leads.push(lead);['name','next','notes'].forEach(id=>document.getElementById(id).value='');save();}
+function val(id){return document.getElementById(id).value.trim();}
+function move(id,dir){const l=leads.find(x=>x.id===id);let i=stages.indexOf(l.stage)+dir;if(i>=0&&i<stages.length){l.stage=stages[i];save();}}
+function delLead(id){leads=leads.filter(x=>x.id!==id);save();}
+function render(){document.querySelectorAll('.col').forEach(c=>c.querySelectorAll('.card').forEach(x=>x.remove()));leads.forEach(l=>{const card=document.createElement('div');card.className='card';card.innerHTML=`<b>${l.name}</b><div class="meta">${l.lane} • ${l.source} • ${l.created}</div><p class="note">${l.notes||''}</p><div class="meta">Next: ${l.next||'Define action'}</div><div class="actions"><button class="ghost" onclick="move(${l.id},-1)">Back</button><button onclick="move(${l.id},1)">Forward</button><button class="danger" onclick="delLead(${l.id})">Park/Delete</button></div>`;document.querySelector(`[data-stage="${l.stage}"]`).appendChild(card);});document.getElementById('total').textContent=leads.length;document.getElementById('sent').textContent=leads.filter(l=>l.stage==='Contacted').length;document.getElementById('talking').textContent=leads.filter(l=>l.stage==='Conversation').length;document.getElementById('won').textContent=leads.filter(l=>l.stage==='Closed').length;}
+render();
+</script>
+</body>
+</html>
