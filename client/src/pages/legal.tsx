@@ -11,7 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { LegalDoc, Client } from "@shared/schema";
-import { Scale, Plus, FileText, DollarSign, Lock, Unlock } from "lucide-react";
+import { Scale, Plus, FileText, DollarSign, Lock, Unlock, Eye, ArrowLeft } from "lucide-react";
+import MasterDocRenderer from "@/components/master-doc/MasterDocRenderer";
+import {
+  MASTER_DOC_REGISTRY,
+  getMasterDoc,
+  type MasterDocId,
+  type TokenMap,
+} from "@/lib/master-doc-registry";
+
+const MASTER_DOC_TEMPLATE_OPTIONS: { id: MasterDocId; label: string }[] = [
+  { id: "msa", label: "Master Service Agreement" },
+  { id: "addendum-noncirc", label: "Non-Circumvention Addendum" },
+  { id: "addendum-noncirc-home-health", label: "Non-Circumvention — Home Health Variant" },
+  { id: "onboarding-welcome", label: "Welcome Packet" },
+  { id: "proposal-canonical", label: "Master Proposal Template" },
+  { id: "tos", label: "Terms of Service" },
+  { id: "privacy", label: "Privacy Policy" },
+];
 
 function label(s: string) { return (s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
@@ -21,6 +38,8 @@ const DOC_STATUSES = ["draft","sent","signed","paid","complete","archived"];
 export default function LegalPage() {
   const { currentEntity } = useEntity();
   const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<MasterDocId | null>(null);
+  const [previewClient, setPreviewClient] = useState<string>("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -80,6 +99,46 @@ export default function LegalPage() {
 
   const getClient = (id: number | null) => id ? clients.find((c) => c.id === id) : null;
 
+  // Reader view — preview a canonical master doc with tokens substituted.
+  if (preview) {
+    const sampleClientName = previewClient || "[Sample Client]";
+    const tokens: TokenMap = {
+      CLIENT_NAME: sampleClientName,
+      CLIENT_LOCATION: "[City, State]",
+      CLIENT_BUSINESS_TYPE: "[Business type]",
+      INDUSTRY: "[Industry]",
+      INDUSTRY_ALT: "",
+      RETAINER_PRICE: "[Per signed SOW]",
+      HERO_HEADLINE: `A plan to <em>move</em> ${sampleClientName} forward`,
+      HERO_SUBLINE: "Preview rendered from the canonical Notion source.",
+      EFFECTIVE_DATE: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+      ADDENDUM_DATE: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+      DEPOSIT_AMOUNT: "50% of total investment",
+      SERVICE_NAME: "[Service]",
+      KICKOFF_DATE: "[TBD]",
+      SOW_REFERENCE: "[SOW reference]",
+    };
+    return (
+      <div className="-m-6">
+        <div className="sticky top-0 z-50 bg-white border-b border-border px-6 py-3 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => setPreview(null)} data-testid="md-preview-close">
+            <ArrowLeft size={14} className="mr-1" /> Back to Legal
+          </Button>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Preview as:</Label>
+            <Input
+              value={previewClient}
+              onChange={(e) => setPreviewClient(e.target.value)}
+              placeholder="[Sample Client]"
+              className="w-56 h-8 text-xs"
+            />
+          </div>
+        </div>
+        <MasterDocRenderer doc={getMasterDoc(preview)} tokens={tokens} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -91,6 +150,34 @@ export default function LegalPage() {
           <Plus size={14} className="mr-1" /> New Document
         </Button>
       </div>
+
+      {/* Master Doc templates — render canonical legal docs in master-doc layout */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Eye size={14} className="text-[#2B287E]" /> Master Doc Templates
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Preview canonical legal documents rendered in the BECS Master Doc layout.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {MASTER_DOC_TEMPLATE_OPTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setPreview(t.id)}
+                className="text-left px-3 py-2.5 rounded-md border border-border bg-white hover:bg-[#F4F7F5] hover:border-[#2B287E]/30 transition-colors"
+                data-testid={`md-template-${t.id}`}
+              >
+                <div className="text-sm font-semibold text-slate-900">{t.label}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Preview →</div>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="space-y-3">{Array(3).fill(0).map((_, i) => <div key={i} className="skeleton h-20 w-full rounded-lg" />)}</div>

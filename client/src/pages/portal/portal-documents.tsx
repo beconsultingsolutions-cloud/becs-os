@@ -1,8 +1,36 @@
+/**
+ * /portal/documents — Client view of their assigned documents.
+ *
+ * Two surfaces:
+ *   1. List view (default) — groups uploaded PDFs by kind, with a separate
+ *      "Templates" group for canonical BECS docs (MSA, Addendum, Welcome
+ *      Packet, ToS, Privacy) rendered via MasterDocLayout.
+ *   2. Reader view — when a registry doc is selected (?doc=<id>), the master-doc
+ *      layout renders inline so the client can read their contract / packet in
+ *      the same styled surface as the public proposal.
+ */
+
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PortalPageShell } from "@/lib/client-layout";
 import { supabase, toCamelArray } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
-import { Loader2, FileText, FolderOpen, Download } from "lucide-react";
+import {
+  Loader2,
+  FileText,
+  FolderOpen,
+  Download,
+  ArrowLeft,
+  ScrollText,
+} from "lucide-react";
+
+import MasterDocRenderer from "@/components/master-doc/MasterDocRenderer";
+import {
+  MASTER_DOC_REGISTRY,
+  getMasterDoc,
+  type MasterDocId,
+  type TokenMap,
+} from "@/lib/master-doc-registry";
 
 interface ClientRow {
   id: number;
@@ -29,8 +57,18 @@ const KIND_LABEL: Record<string, string> = {
   other: "Document",
 };
 
+/* Which registry docs are surfaced inside the portal by default. */
+const PORTAL_TEMPLATES: { id: MasterDocId; label: string; kind: string }[] = [
+  { id: "onboarding-welcome", label: "Welcome Packet", kind: "onboarding" },
+  { id: "msa", label: "Master Service Agreement", kind: "contract" },
+  { id: "addendum-noncirc", label: "Non-Circumvention Addendum", kind: "contract" },
+  { id: "tos", label: "Terms of Service", kind: "policy" },
+  { id: "privacy", label: "Privacy Policy", kind: "policy" },
+];
+
 export default function PortalDocumentsPage() {
   const { becsUser } = useAuth();
+  const [selected, setSelected] = useState<MasterDocId | null>(null);
 
   const clientQuery = useQuery<ClientRow | null>({
     queryKey: ["portal", "client-for-docs", becsUser?.email],
@@ -50,6 +88,7 @@ export default function PortalDocumentsPage() {
   });
 
   const clientId = clientQuery.data?.id;
+  const clientName = clientQuery.data?.name || "your business";
 
   const docsQuery = useQuery<DocumentRow[]>({
     queryKey: ["portal", "documents", clientId],
@@ -68,7 +107,47 @@ export default function PortalDocumentsPage() {
 
   const docs = docsQuery.data ?? [];
 
-  // Group by kind
+  const tokens: TokenMap = useMemo(
+    () => ({
+      CLIENT_NAME: clientName,
+      CLIENT_LOCATION: "—",
+      CLIENT_BUSINESS_TYPE: "Client business",
+      INDUSTRY: "Client industry",
+      INDUSTRY_ALT: "",
+      RETAINER_PRICE: "Per signed SOW",
+      EFFECTIVE_DATE: new Date().toLocaleDateString("en-US", {
+        month: "long", day: "numeric", year: "numeric",
+      }),
+      DEPOSIT_AMOUNT: "50% of total investment",
+      SERVICE_NAME: "Per signed SOW",
+      KICKOFF_DATE: "Per signed SOW",
+      ADDENDUM_DATE: new Date().toLocaleDateString("en-US", {
+        month: "long", day: "numeric", year: "numeric",
+      }),
+      SOW_REFERENCE: "Per signed SOW",
+    }),
+    [clientName]
+  );
+
+  // ── Reader view ────────────────────────────────────────────────────
+  if (selected) {
+    return (
+      <PortalPageShell>
+        <button
+          type="button"
+          onClick={() => setSelected(null)}
+          className="mb-4 inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900"
+          data-testid="md-back"
+        >
+          <ArrowLeft size={16} /> Back to documents
+        </button>
+        <MasterDocRenderer doc={getMasterDoc(selected)} tokens={tokens} />
+      </PortalPageShell>
+    );
+  }
+
+  // ── List view ──────────────────────────────────────────────────────
+  // Group uploaded docs by kind
   const grouped = docs.reduce<Record<string, DocumentRow[]>>((acc, d) => {
     const key = d.kind || "other";
     if (!acc[key]) acc[key] = [];
@@ -80,13 +159,51 @@ export default function PortalDocumentsPage() {
     <PortalPageShell>
       <section className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <div className="text-xs font-semibold uppercase tracking-wider text-[hsl(83,60%,45%)]">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#0F6E56]">
             Your portal
           </div>
           <h1 className="mt-2 text-3xl lg:text-4xl font-bold text-slate-900">Documents</h1>
           <p className="mt-2 text-slate-600">
             Contracts, proposals, deliverables, and shared resources — all in one place.
           </p>
+        </div>
+
+        {/* Templates rail — always present, even if no uploaded docs yet */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <ScrollText size={16} className="text-[#2B287E]" />
+            <div>
+              <div className="text-sm font-bold text-slate-900">BECS templates</div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Canonical contract, addendum, and welcome documents
+              </div>
+            </div>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {PORTAL_TEMPLATES.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelected(t.id)}
+                  className="w-full text-left flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
+                  data-testid={`md-template-${t.id}`}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#2B287E]/10 text-[#2B287E] flex items-center justify-center flex-shrink-0">
+                    <FileText size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-slate-900 truncate">{t.label}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {KIND_LABEL[t.kind] ?? "Document"} · canonical
+                    </div>
+                  </div>
+                  <div className="text-xs text-[#0F6E56] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
+                    Open
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {clientQuery.isLoading || docsQuery.isLoading ? (
@@ -103,10 +220,10 @@ export default function PortalDocumentsPage() {
             <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
               <FolderOpen size={22} className="text-slate-400" />
             </div>
-            <h3 className="mt-4 text-lg font-bold text-slate-900">No documents yet</h3>
+            <h3 className="mt-4 text-lg font-bold text-slate-900">No signed PDFs yet</h3>
             <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
-              Your contracts, deliverables, and shared resources will appear here as your
-              engagement progresses.
+              As your engagement progresses, signed contracts and deliverables will appear here.
+              In the meantime, your BECS templates are available above.
             </p>
           </div>
         ) : (
@@ -134,7 +251,7 @@ export default function PortalDocumentsPage() {
                         className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
                         data-testid={`doc-${d.id}`}
                       >
-                        <div className="w-10 h-10 rounded-lg bg-[hsl(232,45%,18%)]/5 text-[hsl(232,45%,18%)] flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-lg bg-[#1e1c5a]/10 text-[#1e1c5a] flex items-center justify-center flex-shrink-0">
                           <FileText size={18} />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -152,7 +269,7 @@ export default function PortalDocumentsPage() {
                         </div>
                         <Download
                           size={16}
-                          className="text-slate-400 group-hover:text-[hsl(83,60%,45%)] flex-shrink-0"
+                          className="text-slate-400 group-hover:text-[#0F6E56] flex-shrink-0"
                         />
                       </a>
                     </li>
